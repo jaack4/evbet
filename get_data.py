@@ -1,7 +1,9 @@
 import os
 import requests
 from dotenv import load_dotenv
+from Game import Game
 
+NFL = 'americanfootball_nfl'
 
 load_dotenv()
 API_KEY = os.getenv('API_KEY')
@@ -20,7 +22,7 @@ def get_events(sport, commence_time_to) -> dict:
         return events_json
 
 
-def get_event_odds(sport, event_id, reigons, markets, odds_format, bookmakers) -> dict:
+def get_game(sport, event_id, reigons, markets, odds_format, bookmakers) -> Game:
     odds_response = requests.get(f'https://api.the-odds-api.com/v4/sports/{sport}/events/{event_id}/odds', params={
     'apiKey': API_KEY,
     'regions': reigons,
@@ -39,21 +41,26 @@ def get_event_odds(sport, event_id, reigons, markets, odds_format, bookmakers) -
         print('Remaining requests', odds_response.headers['x-requests-remaining'])
         print('Used requests', odds_response.headers['x-requests-used'])
         
-        return odds_json
+        return Game(odds_json['id'], odds_json['sport_key'], odds_json['sport_title'], odds_json['commence_time'], odds_json['home_team'], odds_json['away_team'], odds_json['bookmakers'], markets, bookmakers)
 
-if __name__ == "__main__":
-    events_json = get_events('americanfootball_nfl', '2025-11-11T20:00:00Z')
+def main():
+    events_json = get_events('americanfootball_nfl', '2025-11-26T20:00:00Z')
     print(events_json)
-
+    game = None
     for event in events_json[:1]:
         odds_params = (
             'americanfootball_nfl',
             event['id'],
             'us',
-            'player_field_goals,player_kicking_points,player_pass_attempts',
+            'player_field_goals,player_kicking_points',
             'decimal',
             'prizepicks,underdog,fanduel,draftkings,betmgm,espnbet,hardrockbet'
         )
 
-        odds_json = get_event_odds(*odds_params)
-        print(odds_json)
+        game = get_game(*odds_params)
+        print(game)
+    
+    return game
+
+if __name__ == "__main__":
+    main()
