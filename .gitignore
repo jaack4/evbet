@@ -1,4 +1,4 @@
-nfl_stats.csv
+stats/nfl_stats.csv
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
