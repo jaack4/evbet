@@ -19,6 +19,7 @@ class Game:
 
         self.odds_df = self._odds_to_df(bookmakers)
         self._devig_odds()
+        self._adjust_odds_for_betting_books()
     
     def _odds_to_df(self, bookmakers):
         rows = []
@@ -49,16 +50,15 @@ class Game:
         self.odds_df['devigged_price'] = 1 / self.odds_df['devigged_prob']
         self.odds_df.drop(columns=['implied_prob', 'total_prob'], inplace=True)
     
+    def _adjust_odds_for_betting_books(self, price: float = 1.85) -> None:
+        mask = self.odds_df['bookmaker'].isin(['prizepicks', 'underdog'])
+        self.odds_df.loc[mask, 'price'] = price
+    
     def _calculate_true_mean_from_sharp(self, player: str, market: str, sharp_line: float, sharp_devigged_prob: float) -> float:
-        """
-        Back out the true mean from sharp line and devigged probability
-        @param player: Player name
-        @param market: Market key
-        @param sharp_line: Sharp book's line
-        @param sharp_devigged_prob: Sharp book's devigged probability for OVER
-        @return: Implied true mean
-        """
         try:
+            if sharp_devigged_prob == 0.5:
+                return sharp_line
+
             std = self.nfl_data.get_std_dev(player, market)
             
             if std == 0 or np.isnan(std):
@@ -71,25 +71,17 @@ class Game:
             implied_mean = sharp_line - (std * z_score)
             
             return implied_mean
+
         except Exception as e:
             print(f"Error calculating implied mean for {player} {market}: {e}")
-            return sharp_line  # Fallback to using line as mean
+            return sharp_line  
 
     def _calculate_prob_with_sharp_mean(self, player: str, market: str, sharp_mean: float, betting_line: float, outcome: str) -> float:
-        """
-        Calculate probability of hitting a betting line using sharp-implied mean and historical std dev
-        @param player: Player name
-        @param market: Market key (e.g., 'player_pass_yds')
-        @param sharp_mean: Sharp book's implied mean (adjusted for non-50/50 odds)
-        @param betting_line: Betting book's line to evaluate
-        @param outcome: 'Over' or 'Under'
-        @return: Probability between 0 and 1
-        """
         try:
             std = self.nfl_data.get_std_dev(player, market)
             
             if std == 0 or np.isnan(std):
-                # If no variance, return based on comparison to mean
+                print('STD Failed: Returning based on mean for player: {player}, market: {market}')
                 if outcome == 'Over':
                     return 1.0 if sharp_mean > betting_line else 0.0
                 else:
@@ -118,7 +110,6 @@ class Game:
         plus_ev_bets = []
 
         for _, bet in betting_df.iterrows():
-            # Find corresponding sharp book lines for same player/market (both Over and Under)
             sharp_match_over = sharp_df[
                 (sharp_df['player'] == bet['player']) & 
                 (sharp_df['market'] == bet['market']) & 
@@ -128,21 +119,18 @@ class Game:
             if sharp_match_over.empty:
                 continue
             
-            # Get sharp line and devigged probability for Over
             sharp_line = sharp_match_over.iloc[0]['line']
             sharp_devigged_prob_over = sharp_match_over.iloc[0]['devigged_prob']
 
             print(f'player: {bet['player']}, market: {bet['market']}, sharp_line: {sharp_line}, sharp_devigged_prob_over: {sharp_devigged_prob_over}')
             
-            # Calculate the true implied mean from sharp book's odds
             sharp_mean = self._calculate_true_mean_from_sharp(
                 bet['player'],
                 bet['market'],
                 sharp_line,
                 sharp_devigged_prob_over
             )
-            
-            # Calculate true probability using sharp-implied mean, historical std dev
+
             true_prob = self._calculate_prob_with_sharp_mean(
                 bet['player'], 
                 bet['market'], 
@@ -154,10 +142,8 @@ class Game:
             if true_prob is None:
                 continue
             
-            # Calculate EV: (probability * decimal_odds) - 1
             ev = (true_prob * bet['price']) - 1
-            
-            # Only include if EV exceeds threshold
+    
             if ev >= threshold:
                 plus_ev_bets.append({
                     'bookmaker': bet['bookmaker'],
@@ -180,8 +166,11 @@ class Game:
         result_df = pd.DataFrame(plus_ev_bets)
         if len(result_df) > 0:
             result_df = result_df.sort_values('ev', ascending=False)
+            result_df = result_df[result_df['ev'] <= 0.75]
         
         return result_df
+    
+
         
 
     def __str__(self):

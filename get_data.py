@@ -7,9 +7,10 @@ from nfl_data import NFLData
 NFL = 'americanfootball_nfl'
 NFL_MARKETS = 'player_field_goals,player_pass_attempts,player_pass_completions,player_pass_interceptions,player_pass_tds,player_pass_yds,player_pats,player_receptions,player_reception_tds,player_reception_yds,player_rush_attempts,player_rush_yds,player_rush_tds,player_solo_tackles,player_assists'
 
+
+
 load_dotenv()
 API_KEY = os.getenv('API_KEY')
-nfl_data = NFLData()
 
 def get_events(sport, commence_time_to) -> dict:
     events_response = requests.get(f'https://api.the-odds-api.com/v4/sports/{sport}/events', params={
@@ -25,7 +26,7 @@ def get_events(sport, commence_time_to) -> dict:
         return events_json
 
 
-def get_game(sport, event_id, reigons, markets, odds_format, bookmakers) -> Game:
+def get_game(sport, event_id, reigons, markets, odds_format, bookmakers, nfl_data: NFLData) -> Game:
     odds_response = requests.get(f'https://api.the-odds-api.com/v4/sports/{sport}/events/{event_id}/odds', params={
     'apiKey': API_KEY,
     'regions': reigons,
@@ -49,23 +50,27 @@ def get_game(sport, event_id, reigons, markets, odds_format, bookmakers) -> Game
 def main():
     events_json = get_events('americanfootball_nfl', '2025-11-26T20:00:00Z')
     print(events_json)
-    game = None
-    for event in events_json[1:2]:
+    nfl_data = NFLData()
+
+    for event in events_json:
         odds_params = (
             'americanfootball_nfl',
             event['id'],
             'us',
-            NFL_MARKETS,
-            #'player_pass_yds,player_rush_yds,player_pass_completions,player_rush_attempts',
+            #NFL_MARKETS,
+            'player_pass_attempts,player_pass_completions,player_pass_yds,player_receptions,player_reception_yds,player_rush_attempts,player_rush_yds',
             'decimal',
             #'prizepicks,underdog,fanduel,draftkings,betmgm,espnbet,hardrockbet'
-            'prizepicks,underdog,fanduel'
+            'prizepicks,underdog,fanduel',
+            nfl_data
         )
 
         game = get_game(*odds_params)
         print(game)
+        nfl_data.games.append(game)
     
-    return game
+    return nfl_data
+    
 
 if __name__ == "__main__":
     main()

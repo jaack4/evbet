@@ -24,6 +24,7 @@ ODDS_API_TO_NFL_STATS_MAP = {
 
 class NFLData:
     def __init__(self, file='stats/nfl_stats.csv'):
+        self.games = []
         self.stats = pd.read_csv(file)
 
 
@@ -37,6 +38,19 @@ class NFLData:
     def get_std_dev(self, player: str, stat: str) -> float:
         stat_values = self.get_stats_for_all_games(player, stat)
         return np.std(stat_values)
+    
+    def get_mean(self, player: str, stat: str) -> float:
+        stat_values = self.get_stats_for_all_games(player, stat)
+        return np.mean(stat_values)
+    
+    def find_ev_all_games(self, betting_books: list[str], sharp_books: list[str], threshold: float=0.03) -> pd.DataFrame:
+        ev = []
+        for game in self.games:
+            game_ev = game.find_plus_ev(betting_books, sharp_books, threshold)
+            ev.append(game_ev)
+        return pd.concat(ev).sort_values('ev', ascending=False)
+
+        
 
 
 
