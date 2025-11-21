@@ -155,12 +155,12 @@ class Game:
                     'sharp_mean': sharp_mean,
                     'line_diff': bet['line'] - sharp_line,
                     'mean_diff': bet['line'] - sharp_mean,
+                    'ev': ev,
+                    'ev_percent': ev * 100,
                     'price': bet['price'],
                     'true_prob': true_prob,
                     'implied_prob': 1 / bet['price'],
                     'sharp_devigged_prob': sharp_devigged_prob_over if bet['outcome'] == 'Over' else (1 - sharp_devigged_prob_over),
-                    'ev': ev,
-                    'ev_percent': ev * 100
                 })
         
         result_df = pd.DataFrame(plus_ev_bets)
