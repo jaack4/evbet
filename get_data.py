@@ -3,10 +3,12 @@ import requests
 from dotenv import load_dotenv
 from Game import Game
 from nfl_data import NFLData
+from nba_data import NBAData
 
 NFL = 'americanfootball_nfl'
+NBA = 'basketball_nba'
 NFL_MARKETS = 'player_field_goals,player_pass_attempts,player_pass_completions,player_pass_interceptions,player_pass_tds,player_pass_yds,player_pats,player_receptions,player_reception_tds,player_reception_yds,player_rush_attempts,player_rush_yds,player_rush_tds,player_solo_tackles,player_assists'
-
+NBA_MARKETS = 'player_points,player_rebounds,player_assists,player_threes,player_blocks,player_steals,player_turnovers'
 
 
 load_dotenv()
@@ -26,7 +28,7 @@ def get_events(sport, commence_time_to) -> dict:
         return events_json
 
 
-def get_game(sport, event_id, reigons, markets, odds_format, bookmakers, nfl_data: NFLData) -> Game:
+def get_game(sport, event_id, reigons, markets, odds_format, bookmakers, sport_data: NFLData | NBAData) -> Game:
     odds_response = requests.get(f'https://api.the-odds-api.com/v4/sports/{sport}/events/{event_id}/odds', params={
     'apiKey': API_KEY,
     'regions': reigons,
@@ -45,7 +47,7 @@ def get_game(sport, event_id, reigons, markets, odds_format, bookmakers, nfl_dat
         print('Remaining requests', odds_response.headers['x-requests-remaining'])
         print('Used requests', odds_response.headers['x-requests-used'])
         
-        return Game(odds_json['id'], odds_json['sport_key'], odds_json['sport_title'], odds_json['commence_time'], odds_json['home_team'], odds_json['away_team'], odds_json['bookmakers'], markets, bookmakers, nfl_data)
+        return Game(odds_json['id'], odds_json['sport_key'], odds_json['sport_title'], odds_json['commence_time'], odds_json['home_team'], odds_json['away_team'], odds_json['bookmakers'], markets, bookmakers, sport_data)
 
 def main():
     events_json = get_events('americanfootball_nfl', '2025-11-26T20:00:00Z')

@@ -2,10 +2,10 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 from nfl_data import NFLData
-
+from nba_data import NBAData
 
 class Game:
-    def __init__(self, id, sport_key, sport_title, commence_time, home_team, away_team, bookmakers, markets, bookmaker_keys, nfl_data: NFLData = None):
+    def __init__(self, id, sport_key, sport_title, commence_time, home_team, away_team, bookmakers, markets, bookmaker_keys, sport_data: NFLData | NBAData = None):
         self.id = id
         self.sport_key = sport_key
         self.sport_title = sport_title
@@ -15,7 +15,7 @@ class Game:
         self.bookmakers = bookmakers
         self.markets = markets
         self.bookmaker_keys = bookmaker_keys
-        self.nfl_data = nfl_data if nfl_data else NFLData()
+        self.sport_data = sport_data
 
         self.odds_df = self._odds_to_df(bookmakers)
         self._devig_odds()
@@ -50,7 +50,7 @@ class Game:
         self.odds_df['devigged_price'] = 1 / self.odds_df['devigged_prob']
         self.odds_df.drop(columns=['implied_prob', 'total_prob'], inplace=True)
     
-    def _adjust_odds_for_betting_books(self, price: float = 1.85) -> None:
+    def _adjust_odds_for_betting_books(self, price: float = 1.82) -> None:
         mask = self.odds_df['bookmaker'].isin(['prizepicks', 'underdog'])
         self.odds_df.loc[mask, 'price'] = price
     
@@ -59,7 +59,7 @@ class Game:
             if sharp_devigged_prob == 0.5:
                 return sharp_line
 
-            std = self.nfl_data.get_std_dev(player, market)
+            std = self.sport_data.get_std_dev(player, market)
             
             if std == 0 or np.isnan(std):
                 print('STD Failed: Returning sharp line')
@@ -78,7 +78,7 @@ class Game:
 
     def _calculate_prob_with_sharp_mean(self, player: str, market: str, sharp_mean: float, betting_line: float, outcome: str) -> float:
         try:
-            std = self.nfl_data.get_std_dev(player, market)
+            std = self.sport_data.get_std_dev(player, market)
             
             if std == 0 or np.isnan(std):
                 print('STD Failed: Returning based on mean for player: {player}, market: {market}')
@@ -119,10 +119,11 @@ class Game:
             if sharp_match_over.empty:
                 continue
             
-            sharp_line = sharp_match_over.iloc[0]['line']
-            sharp_devigged_prob_over = sharp_match_over.iloc[0]['devigged_prob']
+            # Average across all sharp books
+            sharp_line = sharp_match_over['line'].mean()
+            sharp_devigged_prob_over = sharp_match_over['devigged_prob'].mean()
 
-            print(f'player: {bet['player']}, market: {bet['market']}, sharp_line: {sharp_line}, sharp_devigged_prob_over: {sharp_devigged_prob_over}')
+            print(f'player: {bet['player']}, market: {bet['market']}, sharp_line: {sharp_line}, sharp_devigged_prob_over: {sharp_devigged_prob_over}, num_sharp_books: {len(sharp_match_over)}')
             
             sharp_mean = self._calculate_true_mean_from_sharp(
                 bet['player'],
