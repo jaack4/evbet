@@ -57,7 +57,7 @@ class Game:
     def _calculate_true_mean_from_sharp(self, player: str, market: str, sharp_line: float, sharp_devigged_prob: float) -> float:
         try:
             if sharp_devigged_prob == 0.5:
-                return sharp_line
+                return np.float64(sharp_line)
 
             std = self.sport_data.get_std_dev(player, market)
             
@@ -119,18 +119,21 @@ class Game:
             if sharp_match_over.empty:
                 continue
             
-            # Average across all sharp books
-            sharp_line = sharp_match_over['line'].mean()
-            sharp_devigged_prob_over = sharp_match_over['devigged_prob'].mean()
 
-            print(f'player: {bet['player']}, market: {bet['market']}, sharp_line: {sharp_line}, sharp_devigged_prob_over: {sharp_devigged_prob_over}, num_sharp_books: {len(sharp_match_over)}')
-            
-            sharp_mean = self._calculate_true_mean_from_sharp(
-                bet['player'],
-                bet['market'],
-                sharp_line,
-                sharp_devigged_prob_over
-            )
+
+            implied_means = []
+            for _, sharp_bet in sharp_match_over.iterrows():
+                mean = self._calculate_true_mean_from_sharp(
+                    bet['player'],
+                    bet['market'],
+                    sharp_bet['line'],
+                    sharp_bet['devigged_prob']
+                )
+                implied_means.append(mean)
+
+            sharp_mean = np.mean(implied_means)
+
+            print(f"player: {bet['player']}, market: {bet['market']}, sharp_mean: {sharp_mean}, implied_means: {implied_means}, num_sharp_books: {len(sharp_match_over)}")
 
             true_prob = self._calculate_prob_with_sharp_mean(
                 bet['player'], 
@@ -141,6 +144,7 @@ class Game:
             )
             
             if true_prob is None:
+                print('True prob is None')
                 continue
             
             ev = (true_prob * bet['price']) - 1
@@ -152,22 +156,18 @@ class Game:
                     'player': bet['player'],
                     'outcome': bet['outcome'],
                     'betting_line': bet['line'],
-                    'sharp_line': sharp_line,
                     'sharp_mean': sharp_mean,
-                    'line_diff': bet['line'] - sharp_line,
+                    'implied_means': implied_means,
                     'mean_diff': bet['line'] - sharp_mean,
-                    'ev': ev,
                     'ev_percent': ev * 100,
                     'price': bet['price'],
-                    'true_prob': true_prob,
-                    'implied_prob': 1 / bet['price'],
-                    'sharp_devigged_prob': sharp_devigged_prob_over if bet['outcome'] == 'Over' else (1 - sharp_devigged_prob_over),
+                    'true_prob': true_prob
                 })
         
         result_df = pd.DataFrame(plus_ev_bets)
         if len(result_df) > 0:
-            result_df = result_df.sort_values('ev', ascending=False)
-            result_df = result_df[result_df['ev'] <= 0.75]
+            result_df = result_df.sort_values('ev_percent', ascending=False)
+            result_df = result_df[result_df['ev_percent'] <= 75]
         
         return result_df
     

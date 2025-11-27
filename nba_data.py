@@ -43,7 +43,7 @@ class NBAData:
         for game in self.games:
             game_ev = game.find_plus_ev(betting_books, sharp_books, threshold)
             ev.append(game_ev)
-        return pd.concat(ev).sort_values('ev', ascending=False)
+        return pd.concat(ev).sort_values('ev_percent', ascending=False)
 
         
 

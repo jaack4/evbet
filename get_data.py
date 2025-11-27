@@ -50,7 +50,7 @@ def get_game(sport, event_id, reigons, markets, odds_format, bookmakers, sport_d
         return Game(odds_json['id'], odds_json['sport_key'], odds_json['sport_title'], odds_json['commence_time'], odds_json['home_team'], odds_json['away_team'], odds_json['bookmakers'], markets, bookmakers, sport_data)
 
 def main():
-    events_json = get_events('americanfootball_nfl', '2025-11-26T20:00:00Z')
+    events_json = get_events('americanfootball_nfl', '2025-12-03T20:00:00Z')
     print(events_json)
     nfl_data = NFLData()
 
@@ -63,7 +63,7 @@ def main():
             'player_pass_attempts,player_pass_completions,player_pass_yds,player_receptions,player_reception_yds,player_rush_attempts,player_rush_yds',
             'decimal',
             #'prizepicks,underdog,fanduel,draftkings,betmgm,espnbet,hardrockbet'
-            'prizepicks,underdog,fanduel',
+            'prizepicks,underdog,fanduel,draftkings',
             nfl_data
         )
 

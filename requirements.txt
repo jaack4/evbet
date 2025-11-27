@@ -1,0 +1,9 @@
+requests
+pandas
+numpy
+scipy
+python-dotenv
+psycopg2-binary
+schedule
+nflreadpy
+
