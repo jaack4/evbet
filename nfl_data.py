@@ -25,7 +25,7 @@ ODDS_API_TO_NFL_STATS_MAP = {
 class NFLData:
     def __init__(self, file='stats/nfl_stats.csv'):
         self.games = []
-        self.stats = pd.read_csv(file)
+        self.stats = pd.read_csv(file, low_memory=False)
 
 
 

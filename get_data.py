@@ -59,8 +59,8 @@ def main():
             'americanfootball_nfl',
             event['id'],
             'us',
-            #NFL_MARKETS,
-            'player_pass_attempts,player_pass_completions,player_pass_yds,player_receptions,player_reception_yds,player_rush_attempts,player_rush_yds',
+            NFL_MARKETS,
+            #'player_pass_attempts,player_pass_completions,player_pass_yds,player_receptions,player_reception_yds,player_rush_attempts,player_rush_yds',
             'decimal',
             #'prizepicks,underdog,fanduel,draftkings,betmgm,espnbet,hardrockbet'
             'prizepicks,underdog,fanduel,draftkings',

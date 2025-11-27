@@ -17,7 +17,7 @@ ODDS_API_TO_NBA_STATS_MAP = {
 class NBAData:
     def __init__(self, file='stats/nba_stats.csv'):
         self.games = []
-        self.stats = pd.read_csv(file)
+        self.stats = pd.read_csv(file, low_memory=False)
 
 
 
