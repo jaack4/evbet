@@ -25,7 +25,13 @@ ODDS_API_TO_NFL_STATS_MAP = {
 class NFLData:
     def __init__(self, file='stats/nfl_stats.csv'):
         self.games = []
-        self.stats = pd.read_csv(file, low_memory=False)
+        # Only load columns we actually need to compute EV, not the full CSV
+        columns_needed = ['player_display_name'] + list(ODDS_API_TO_NFL_STATS_MAP.values())
+        self.stats = pd.read_csv(
+            file,
+            usecols=columns_needed,   # <- huge memory savings
+            low_memory=False
+        )
 
 
 
