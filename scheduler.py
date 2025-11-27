@@ -51,7 +51,7 @@ def update_nfl_bets(db: Database):
                     NFL,
                     event['id'],
                     'us',
-                    'player_pass_attempts,player_pass_completions,player_pass_yds,player_receptions,player_reception_yds,player_rush_attempts,player_rush_yds',
+                    NFL_MARKETS,
                     'decimal',
                     'prizepicks,underdog,fanduel,draftkings',
                     nfl_data
@@ -166,7 +166,10 @@ def update_ev_bets():
     
     try:
         with Database() as db:
-            # Deactivate old bets (older than 24 hours)
+            # Deactivate bets for games that have already started
+            db.deactivate_commenced_bets()
+            
+            # Deactivate old bets as a safety net (older than 24 hours)
             db.deactivate_old_bets(hours=24)
             
             # Update NFL bets
