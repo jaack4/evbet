@@ -19,7 +19,7 @@ def update_nfl_bets(db: Database):
     
     try:
         # Get NFL games for the next 7 days
-        commence_time_to = (datetime.now() + timedelta(days=7)).isoformat() + 'Z'
+        commence_time_to = (datetime.now() + timedelta(days=7)).isoformat(timespec='seconds') + 'Z'
         nfl_events = get_events(NFL, commence_time_to)
         
         if not nfl_events:
@@ -173,7 +173,7 @@ def update_ev_bets():
             update_nfl_bets(db)
             
             # Update NBA bets
-            update_nba_bets(db)
+            #update_nba_bets(db)
             
             # Print statistics
             stats = db.get_bet_statistics()
