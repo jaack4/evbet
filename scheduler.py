@@ -193,6 +193,35 @@ def update_ev_bets():
         import traceback
         traceback.print_exc()
 
+def check_and_initialize_database():
+    """Check if database is initialized, and initialize if needed"""
+    try:
+        with Database() as db:
+            # Try to query ev_bets table
+            with db.conn.cursor() as cur:
+                cur.execute("SELECT COUNT(*) FROM ev_bets LIMIT 1")
+        print("Database is already initialized.")
+        return True
+    except Exception as e:
+        if "does not exist" in str(e):
+            print("\n" + "="*50)
+            print("Database not initialized. Initializing now...")
+            print("="*50 + "\n")
+            try:
+                from init_db import init_database
+                if init_database():
+                    print("\nDatabase initialized successfully!")
+                    return True
+                else:
+                    print("\nFailed to initialize database.")
+                    return False
+            except Exception as init_error:
+                print(f"Error initializing database: {init_error}")
+                return False
+        else:
+            print(f"Database connection error: {e}")
+            return False
+
 if __name__ == "__main__":
     # Check if DATABASE_URL is set
     if not os.getenv('DATABASE_URL'):
@@ -209,6 +238,11 @@ if __name__ == "__main__":
     print("="*50)
     print("EV Bet Scheduler Starting...")
     print("="*50)
+    
+    # Check and initialize database if needed
+    if not check_and_initialize_database():
+        print("\nERROR: Could not initialize database. Exiting.")
+        exit(1)
     
     # Run immediately on startup
     update_ev_bets()
