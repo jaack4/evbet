@@ -3,6 +3,7 @@ import numpy as np
 import nflreadpy as nfl
 import json
 import os
+import matplotlib.pyplot as plt
 
 ODDS_API_TO_NBA_STATS_MAP = {
     'player_points': 'points',
