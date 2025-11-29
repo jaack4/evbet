@@ -44,6 +44,18 @@ class NBAData:
             game_ev = game.find_plus_ev(betting_books, sharp_books, threshold)
             ev.append(game_ev)
         return pd.concat(ev).sort_values('ev_percent', ascending=False)
+    
+    def plot_stats_distribution(self, player: str, stat: str, bins: int = 100) -> None:
+        stat_values = self.get_stats_for_all_games(player, stat)
+        plt.hist(stat_values, bins)
+        plt.show()
+
+    def plot_all_stats_distribution(self, stat: str, bins: int = 100) -> None:
+        values = self.stats[ODDS_API_TO_NBA_STATS_MAP[stat]].values
+        #remove 0 values
+        values = values[values != 0]
+        plt.hist(values, bins)
+        plt.show()
 
         
 
