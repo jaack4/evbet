@@ -171,7 +171,6 @@ class Game:
                     'betting_line': bet['line'],
                     'sharp_mean': sharp_mean,
                     'implied_means': implied_means,
-                    'distribution': self._get_distribution_type(bet['market']),
                     'mean_diff': bet['line'] - sharp_mean,
                     'ev_percent': ev_percent,
                     'price': bet['price'],
