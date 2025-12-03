@@ -92,7 +92,7 @@ def update_nba_bets(db: Database):
     
     try:
         # Get NBA games for the next 7 days
-        commence_time_to = (datetime.now() + timedelta(days=7)).isoformat() + 'Z'
+        commence_time_to = (datetime.now() + timedelta(days=2)).isoformat(timespec='seconds') + 'Z'
         nba_events = get_events(NBA, commence_time_to)
         
         if not nba_events:
@@ -166,11 +166,9 @@ def update_ev_bets():
     
     try:
         with Database() as db:
-            # Deactivate bets for games that have already started
-            db.deactivate_commenced_bets()
-            
-            # Deactivate old bets as a safety net (older than 24 hours)
-            db.deactivate_old_bets(hours=24)
+            # Deactivate ALL currently active bets at the start of each update
+            # This ensures only the most recently calculated bets are active
+            db.deactivate_all_bets()
             
             # Update NFL bets
             update_nfl_bets(db)

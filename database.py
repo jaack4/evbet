@@ -32,12 +32,26 @@ class Database:
             """, game_data)
             self.conn.commit()
     
+    def deactivate_all_bets(self):
+        """
+        Deactivate all currently active bets.
+        Called at the start of each update cycle to ensure only the most recent bets are active.
+        """
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                UPDATE ev_bets 
+                SET is_active = FALSE 
+                WHERE is_active = TRUE
+            """)
+            rows_affected = cur.rowcount
+            self.conn.commit()
+            if rows_affected > 0:
+                print(f"Deactivated {rows_affected} previously active bets")
+    
     def insert_ev_bets(self, ev_bets_df, game_id):
         """
-        Insert EV bets from a DataFrame
-        Deactivates old versions of the same bet before inserting new ones.
-        This ensures active_ev_bets only shows the most recent updates,
-        while ev_bets table retains full history for backtesting.
+        Insert EV bets from a DataFrame as active bets.
+        All bets are inserted as active (is_active = TRUE).
         
         Args:
             ev_bets_df (pd.DataFrame): DataFrame containing EV bets
@@ -49,34 +63,9 @@ class Database:
         
         with self.conn.cursor() as cur:
             inserted_count = 0
-            updated_count = 0
             for _, bet in ev_bets_df.iterrows():
                 try:
-                    # First, deactivate any existing active bets with the same characteristics
-                    # This ensures only the most recent version stays active
-                    cur.execute("""
-                        UPDATE ev_bets
-                        SET is_active = FALSE
-                        WHERE game_id = %(game_id)s
-                        AND bookmaker = %(bookmaker)s
-                        AND market = %(market)s
-                        AND player = %(player)s
-                        AND outcome = %(outcome)s
-                        AND betting_line = %(betting_line)s
-                        AND is_active = TRUE
-                    """, {
-                        'game_id': game_id,
-                        'bookmaker': bet['bookmaker'],
-                        'market': bet['market'],
-                        'player': bet['player'],
-                        'outcome': bet['outcome'],
-                        'betting_line': float(bet['betting_line'])
-                    })
-                    
-                    if cur.rowcount > 0:
-                        updated_count += 1
-                    
-                    # Then insert the new bet as active
+                    # Insert the new bet as active
                     cur.execute("""
                         INSERT INTO ev_bets 
                         (game_id, bookmaker, market, player, outcome, betting_line, 
@@ -104,7 +93,7 @@ class Database:
                     continue
             
             self.conn.commit()
-            print(f"Inserted {inserted_count} EV bets for game {game_id} ({updated_count} were updates)")
+            print(f"Inserted {inserted_count} EV bets for game {game_id}")
     
     def deactivate_old_bets(self, hours=24):
         """
