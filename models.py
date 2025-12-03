@@ -65,3 +65,8 @@ class BetResult(Base):
     # Relationships
     ev_bet = relationship("EVBet", back_populates="result")
 
+
+
+
+
+

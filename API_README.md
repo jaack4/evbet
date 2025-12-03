@@ -304,3 +304,8 @@ The API uses the `Database` class from `database.py` which:
 - Results are sorted by EV percentage (highest first)
 - All queries are parameterized to prevent SQL injection
 
+
+
+
+
+

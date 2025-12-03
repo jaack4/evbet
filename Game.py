@@ -41,6 +41,7 @@ class Game:
         """
         Update odds_df to add column for devigged price and probability with multiplicative method
         """
+        print(f'odds_df columns: {self.odds_df.columns.tolist()}')
         self.odds_df['implied_prob'] = 1 / self.odds_df['price']
         
         grouped = self.odds_df.groupby(['bookmaker', 'market', 'player', 'line'])
@@ -54,7 +55,11 @@ class Game:
         mask = self.odds_df['bookmaker'].isin(['prizepicks', 'underdog'])
         self.odds_df.loc[mask, 'price'] = price
     
+    
     def _calculate_true_mean_from_sharp(self, player: str, market: str, sharp_line: float, sharp_devigged_prob: float) -> float:
+        """
+        Back out the true mean from sharp book's line and probability using normal distribution.
+        """
         try:
             if sharp_devigged_prob == 0.5:
                 return np.float64(sharp_line)
@@ -77,11 +82,14 @@ class Game:
             return sharp_line  
 
     def _calculate_prob_with_sharp_mean(self, player: str, market: str, sharp_mean: float, betting_line: float, outcome: str) -> float:
+        """
+        Calculate the probability of an outcome using normal distribution.
+        """
         try:
             std = self.sport_data.get_std_dev(player, market)
             
             if std == 0 or np.isnan(std):
-                print('STD Failed: Returning based on mean for player: {player}, market: {market}')
+                print(f'STD Failed: Returning based on mean for player: {player}, market: {market}')
                 if outcome == 'Over':
                     return 1.0 if sharp_mean > betting_line else 0.0
                 else:
@@ -94,11 +102,12 @@ class Game:
                 prob = stats.norm.cdf(betting_line, loc=sharp_mean, scale=std)
             
             return prob
+                
         except Exception as e:
             print(f"Error calculating probability for {player} {market}: {e}")
             return None
 
-    def find_plus_ev(self, betting_books: list[str], sharp_books: list[str], threshold: float=0.03) -> pd.DataFrame:
+    def find_plus_ev(self, betting_books: list[str], sharp_books: list[str], threshold: float=0.0) -> pd.DataFrame:
         """
         @param betting_books: Bookmakers user is betting on
         @param sharp_books: List of bookmakers to use for sharp odds (their lines used as true mean)
@@ -109,6 +118,8 @@ class Game:
         betting_df = self.odds_df[self.odds_df['bookmaker'].isin(betting_books)].copy()
         plus_ev_bets = []
 
+        print(f"Finding plus EV bets {len(betting_df)} for {self.home_team} {self.away_team} {self.commence_time}")
+        
         for _, bet in betting_df.iterrows():
             sharp_match_over = sharp_df[
                 (sharp_df['player'] == bet['player']) & 
@@ -123,6 +134,7 @@ class Game:
 
             implied_means = []
             for _, sharp_bet in sharp_match_over.iterrows():
+
                 mean = self._calculate_true_mean_from_sharp(
                     bet['player'],
                     bet['market'],
@@ -147,21 +159,26 @@ class Game:
                 print('True prob is None')
                 continue
             
-            ev = (true_prob * bet['price']) - 1
+            ev_percent = ((true_prob * bet['price']) - 1) * 100
     
-            if ev >= threshold:
+            if ev_percent >= threshold:
                 plus_ev_bets.append({
                     'bookmaker': bet['bookmaker'],
+                    'sport_key': self.sport_key,
                     'market': bet['market'],
                     'player': bet['player'],
                     'outcome': bet['outcome'],
                     'betting_line': bet['line'],
                     'sharp_mean': sharp_mean,
                     'implied_means': implied_means,
+                    'distribution': self._get_distribution_type(bet['market']),
                     'mean_diff': bet['line'] - sharp_mean,
-                    'ev_percent': ev * 100,
+                    'ev_percent': ev_percent,
                     'price': bet['price'],
-                    'true_prob': true_prob
+                    'true_prob': true_prob,
+                    'home_team': self.home_team,
+                    'away_team': self.away_team,
+                    'commence_time': self.commence_time
                 })
         
         result_df = pd.DataFrame(plus_ev_bets)

@@ -47,10 +47,14 @@ def get_game(sport, event_id, reigons, markets, odds_format, bookmakers, sport_d
         print('Remaining requests', odds_response.headers['x-requests-remaining'])
         print('Used requests', odds_response.headers['x-requests-used'])
         
+        if len(odds_json['bookmakers']) == 0:
+            print(f'No bookmakers found for event {odds_json["id"]},  home_team: {odds_json["home_team"]}, away_team: {odds_json["away_team"]}')
+            return None
+        
         return Game(odds_json['id'], odds_json['sport_key'], odds_json['sport_title'], odds_json['commence_time'], odds_json['home_team'], odds_json['away_team'], odds_json['bookmakers'], markets, bookmakers, sport_data)
 
 def main():
-    events_json = get_events('americanfootball_nfl', '2025-12-03T20:00:00Z')
+    events_json = get_events('americanfootball_nfl', '2025-12-08T20:00:00Z')
     print(events_json)
     nfl_data = NFLData()
 
@@ -68,11 +72,36 @@ def main():
         )
 
         game = get_game(*odds_params)
-        print(game)
-        nfl_data.games.append(game)
+        
+        if game is not None:
+            print(game)
+            nfl_data.games.append(game)
     
     return nfl_data
     
+def main_nba():
+    events_json = get_events('basketball_nba', '2025-12-04T20:00:00Z')
+    print(events_json)
+    nba_data = NBAData()
+
+    for event in events_json:
+        odds_params = (
+            'basketball_nba',
+            event['id'],
+            'us',
+            NBA_MARKETS,
+            'decimal',
+            'prizepicks,underdog,fanduel,draftkings',
+            nba_data
+        )
+
+        game = get_game(*odds_params)
+        if game is not None:
+            print(game)
+            print(game.odds_df)
+            nba_data.games.append(game)
+
+    return nba_data
 
 if __name__ == "__main__":
-    main()
+    main_nba()
