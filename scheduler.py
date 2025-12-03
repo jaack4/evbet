@@ -174,7 +174,7 @@ def update_ev_bets():
             update_nfl_bets(db)
             
             # Update NBA bets
-            #update_nba_bets(db)
+            update_nba_bets(db)
             
             # Print statistics
             stats = db.get_bet_statistics()
@@ -236,6 +236,9 @@ if __name__ == "__main__":
         print("Please set it in your .env file or Railway environment variables")
         exit(1)
     
+    # Get update interval from environment variable (default to 15 minutes)
+    update_interval = int(os.getenv('UPDATE_INTERVAL_MINUTES', '15'))
+    
     print("="*50)
     print("EV Bet Scheduler Starting...")
     print("="*50)
@@ -248,10 +251,10 @@ if __name__ == "__main__":
     # Run immediately on startup
     update_ev_bets()
     
-    # Schedule to run every 30 minutes
-    schedule.every(30).minutes.do(update_ev_bets)
+    # Schedule to run at the specified interval
+    schedule.every(update_interval).minutes.do(update_ev_bets)
     
-    print(f"\nScheduler active. Updates will run every 30 minutes.")
+    print(f"\nScheduler active. Updates will run every {update_interval} minutes.")
     print("Press Ctrl+C to stop.\n")
     
     while True:
