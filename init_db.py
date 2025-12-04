@@ -11,16 +11,27 @@ load_dotenv()
 
 def init_database():
     """Initialize the database with the schema"""
-    database_url = os.getenv('DATABASE_URL')
+    # Load individual connection parameters
+    user = os.getenv('user')
+    password = os.getenv('password')
+    host = os.getenv('host')
+    port = os.getenv('port')
+    dbname = os.getenv('dbname')
     
-    if not database_url:
-        print("ERROR: DATABASE_URL environment variable is not set!")
-        print("Please add it to your .env file or set it in your environment")
+    if not all([user, password, host, port, dbname]):
+        print("ERROR: Missing database connection parameters!")
+        print("Please add user, password, host, port, and dbname to your .env file")
         return False
     
     try:
         print("Connecting to database...")
-        conn = psycopg2.connect(database_url)
+        conn = psycopg2.connect(
+            user=user,
+            password=password,
+            host=host,
+            port=port,
+            dbname=dbname
+        )
         cur = conn.cursor()
         
         print("Reading schema.sql...")

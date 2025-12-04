@@ -1,4 +1,4 @@
 - update database for additional columns
-- get api functioning
+- get supabase db setup
 - experiment with other dist/models
 - update scheduler for nba, decide on commence dates for each market
