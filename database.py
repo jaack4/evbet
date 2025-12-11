@@ -48,6 +48,28 @@ class Database:
             if rows_affected > 0:
                 print(f"Deactivated {rows_affected} previously active bets")
     
+    def deactivate_bets_for_sport(self, sport_title):
+        """
+        Deactivate all currently active bets for a specific sport.
+        This allows multiple scheduler instances to run concurrently without interfering.
+        
+        Args:
+            sport_title (str): The sport title (e.g., 'NFL', 'NBA')
+        """
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                UPDATE ev_bets 
+                SET is_active = FALSE 
+                WHERE is_active = TRUE
+                AND game_id IN (
+                    SELECT id FROM games WHERE sport_title = %s
+                )
+            """, (sport_title,))
+            rows_affected = cur.rowcount
+            self.conn.commit()
+            if rows_affected > 0:
+                print(f"Deactivated {rows_affected} previously active {sport_title} bets")
+    
     def insert_ev_bets(self, ev_bets_df, game_id):
         """
         Insert EV bets from a DataFrame as active bets.

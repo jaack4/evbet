@@ -1,6 +1,8 @@
 import schedule
 import time
 import os
+import sys
+import argparse
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from get_data import get_events, get_game, NFL, NBA, NFL_MARKETS, NBA_MARKETS
@@ -157,24 +159,33 @@ def update_nba_bets(db: Database):
     except Exception as e:
         print(f"Error in update_nba_bets: {e}")
 
-def update_ev_bets():
-    """Main function to fetch and update all EV bets"""
+def update_ev_bets(sport=None):
+    """
+    Main function to fetch and update EV bets
+    
+    Args:
+        sport (str): 'nfl', 'nba', or None for both
+    """
+    sport_name = sport.upper() if sport else "ALL"
     print(f"\n{'#'*50}")
-    print(f"# Starting EV Bet Update")
+    print(f"# Starting {sport_name} EV Bet Update")
     print(f"# {datetime.now()}")
     print(f"{'#'*50}\n")
     
     try:
         with Database() as db:
-            # Deactivate ALL currently active bets at the start of each update
-            # This ensures only the most recently calculated bets are active
-            db.deactivate_all_bets()
-            
-            # Update NFL bets
-            update_nfl_bets(db)
-            
-            # Update NBA bets
-            update_nba_bets(db)
+            # Deactivate bets based on sport parameter
+            if sport == 'nfl':
+                db.deactivate_bets_for_sport('NFL')
+                update_nfl_bets(db)
+            elif sport == 'nba':
+                db.deactivate_bets_for_sport('NBA')
+                update_nba_bets(db)
+            else:
+                # Update both sports - deactivate all
+                db.deactivate_all_bets()
+                update_nfl_bets(db)
+                update_nba_bets(db)
             
             # Print statistics
             stats = db.get_bet_statistics()
@@ -187,7 +198,7 @@ def update_ev_bets():
                 print(f"  Max EV: {stats['max_ev_percent']:.2f}%")
             print(f"{'='*50}\n")
         
-        print(f"[{datetime.now()}] EV bet update completed successfully!\n")
+        print(f"[{datetime.now()}] {sport_name} EV bet update completed successfully!\n")
         
     except Exception as e:
         print(f"Error in update_ev_bets: {e}")
@@ -224,6 +235,19 @@ def check_and_initialize_database():
             return False
 
 if __name__ == "__main__":
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(
+        description='EV Bet Scheduler - Update NFL and/or NBA betting data'
+    )
+    parser.add_argument(
+        '--sport',
+        type=str,
+        choices=['nfl', 'nba', 'both'],
+        default='both',
+        help='Which sport to update: nfl, nba, or both (default: both)'
+    )
+    args = parser.parse_args()
+    
     # Check if DATABASE_URL is set
     if not os.getenv('DATABASE_URL'):
         print("ERROR: DATABASE_URL environment variable is not set!")
@@ -239,8 +263,12 @@ if __name__ == "__main__":
     # Get update interval from environment variable (default to 15 minutes)
     update_interval = int(os.getenv('UPDATE_INTERVAL_MINUTES', '15'))
     
+    # Determine which sport(s) to run
+    sport_param = None if args.sport == 'both' else args.sport
+    sport_display = args.sport.upper()
+    
     print("="*50)
-    print("EV Bet Scheduler Starting...")
+    print(f"EV Bet Scheduler Starting ({sport_display})...")
     print("="*50)
     
     # Check and initialize database if needed
@@ -249,15 +277,15 @@ if __name__ == "__main__":
         exit(1)
     
     # Run immediately on startup
-    update_ev_bets()
+    update_ev_bets(sport=sport_param)
     
     # Schedule to run at the specified interval
-    schedule.every(update_interval).minutes.do(update_ev_bets)
+    schedule.every(update_interval).minutes.do(update_ev_bets, sport=sport_param)
     
-    print(f"\nScheduler active. Updates will run every {update_interval} minutes.")
+    print(f"\nScheduler active ({sport_display}). Updates will run every {update_interval} minutes.")
     print("Press Ctrl+C to stop.\n")
     
     while True:
         schedule.run_pending()
-        time.sleep(60)  # Check every minute
+        time.sleep(30)  # Check every minute
 
