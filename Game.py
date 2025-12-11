@@ -56,15 +56,13 @@ class Game:
         self.odds_df.loc[mask, 'price'] = price
     
     
-    def _calculate_true_mean_from_sharp(self, player: str, market: str, sharp_line: float, sharp_devigged_prob: float) -> float:
+    def _calculate_true_mean_from_sharp(self, player: str, market: str, sharp_line: float, sharp_devigged_prob: float, std: float) -> float:
         """
         Back out the true mean from sharp book's line and probability using normal distribution.
         """
         try:
             if sharp_devigged_prob == 0.5:
                 return np.float64(sharp_line)
-
-            std = self.sport_data.get_std_dev(player, market)
             
             if std == 0 or np.isnan(std):
                 print('STD Failed: Returning sharp line')
@@ -81,12 +79,11 @@ class Game:
             print(f"Error calculating implied mean for {player} {market}: {e}")
             return sharp_line  
 
-    def _calculate_prob_with_sharp_mean(self, player: str, market: str, sharp_mean: float, betting_line: float, outcome: str) -> float:
+    def _calculate_prob_with_sharp_mean(self, player: str, market: str, sharp_mean: float, betting_line: float, outcome: str, std: float) -> float:
         """
         Calculate the probability of an outcome using normal distribution.
         """
         try:
-            std = self.sport_data.get_std_dev(player, market)
             
             if std == 0 or np.isnan(std):
                 print(f'STD Failed: Returning based on mean for player: {player}, market: {market}')
@@ -130,7 +127,7 @@ class Game:
             if sharp_match_over.empty:
                 continue
             
-
+            std = self.sport_data.get_std_dev(bet['player'], bet['market'])
 
             implied_means = []
             for _, sharp_bet in sharp_match_over.iterrows():
@@ -139,7 +136,8 @@ class Game:
                     bet['player'],
                     bet['market'],
                     sharp_bet['line'],
-                    sharp_bet['devigged_prob']
+                    sharp_bet['devigged_prob'],
+                    std
                 )
                 implied_means.append(mean)
 
@@ -152,7 +150,8 @@ class Game:
                 bet['market'], 
                 sharp_mean,
                 bet['line'], 
-                bet['outcome']
+                bet['outcome'],
+                std
             )
             
             if true_prob is None:
