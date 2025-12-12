@@ -184,7 +184,7 @@ class Game:
         result_df = pd.DataFrame(plus_ev_bets)
         if len(result_df) > 0:
             result_df = result_df.sort_values('ev_percent', ascending=False)
-            #result_df = result_df[result_df['sample_size'] > 1]
+            result_df = result_df[result_df['sample_size'] > 1]
         
         return result_df
     
