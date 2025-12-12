@@ -171,6 +171,7 @@ class Game:
                     'sharp_mean': sharp_mean,
                     'implied_means': implied_means,
                     'std_dev': std,
+                    'sample_size': sample_size,
                     'mean_diff': bet['line'] - sharp_mean,
                     'ev_percent': ev_percent,
                     'price': bet['price'],

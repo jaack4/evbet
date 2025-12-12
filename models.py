@@ -39,7 +39,9 @@ class EVBet(Base):
     
     # EV calculations
     sharp_mean = Column(Float, nullable=False)
-    implied_means = Column(JSON, nullable=False)  # Store array of means
+    std_dev = Column(Float, nullable=True)
+    implied_means = Column(JSON, nullable=True)  # Store array of means
+    sample_size = Column(Integer, nullable=True)
     mean_diff = Column(Float, nullable=False)
     ev_percent = Column(Float, nullable=False)
     true_prob = Column(Float, nullable=False)

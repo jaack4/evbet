@@ -1,8 +1,9 @@
 import os
 import psycopg2
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import RealDictCursor, Json
 import pandas as pd
 from datetime import datetime
+import json
 
 class Database:
     def __init__(self):
@@ -91,10 +92,12 @@ class Database:
                     cur.execute("""
                         INSERT INTO ev_bets 
                         (game_id, bookmaker, market, player, outcome, betting_line, 
-                         sharp_mean, mean_diff, ev_percent, price, true_prob)
+                         sharp_mean, std_dev, implied_means, sample_size, mean_diff, 
+                         ev_percent, price, true_prob)
                         VALUES 
                         (%(game_id)s, %(bookmaker)s, %(market)s, %(player)s, 
-                         %(outcome)s, %(betting_line)s, %(sharp_mean)s, %(mean_diff)s, 
+                         %(outcome)s, %(betting_line)s, %(sharp_mean)s, %(std_dev)s,
+                         %(implied_means)s, %(sample_size)s, %(mean_diff)s, 
                          %(ev_percent)s, %(price)s, %(true_prob)s)
                     """, {
                         'game_id': game_id,
@@ -104,6 +107,9 @@ class Database:
                         'outcome': bet['outcome'],
                         'betting_line': float(bet['betting_line']),
                         'sharp_mean': float(bet['sharp_mean']),
+                        'std_dev': float(bet['std_dev']) if 'std_dev' in bet and bet['std_dev'] is not None else None,
+                        'implied_means': Json(bet['implied_means']) if 'implied_means' in bet and bet['implied_means'] is not None else None,
+                        'sample_size': int(bet['sample_size']) if 'sample_size' in bet and bet['sample_size'] is not None else None,
                         'mean_diff': float(bet['mean_diff']),
                         'ev_percent': float(bet['ev_percent']),
                         'price': float(bet['price']),
