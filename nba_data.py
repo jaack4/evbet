@@ -22,22 +22,22 @@ class NBAData:
 
 
 
-    def get_stats_for_all_games(self, player: str, stat: str) -> list[int|float]:
+    def get_stats_for_all_games(self, player: str, stat: str) -> tuple[list[int|float], int]:
         first_name = player[:player.find(' ')]
         last_name = player[player.find(' ') + 1:]
         current_stats = self.stats[(self.stats['firstName'] == first_name) & (self.stats['lastName'] == last_name)]
         stat_name = ODDS_API_TO_NBA_STATS_MAP[stat]
         stat_values = current_stats[stat_name].values
         stat_values = stat_values[~np.isnan(stat_values)]
-        return stat_values
+        return stat_values, len(stat_values)
 
-    def get_std_dev(self, player: str, stat: str) -> float:
-        stat_values = self.get_stats_for_all_games(player, stat)
-        return np.std(stat_values)
+    def get_std_dev(self, player: str, stat: str) -> tuple[float, int]:
+        stat_values, sample_size = self.get_stats_for_all_games(player, stat)
+        return np.std(stat_values), sample_size
     
-    def get_mean(self, player: str, stat: str) -> float:
-        stat_values = self.get_stats_for_all_games(player, stat)
-        return np.mean(stat_values)
+    def get_mean(self, player: str, stat: str) -> tuple[float, int]:
+        stat_values, sample_size = self.get_stats_for_all_games(player, stat)
+        return np.mean(stat_values), sample_size
     
     def find_ev_all_games(self, betting_books: list[str], sharp_books: list[str], threshold: float=0.03) -> pd.DataFrame:
         ev = []

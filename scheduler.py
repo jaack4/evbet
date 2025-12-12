@@ -67,7 +67,7 @@ def update_nfl_bets(db: Database):
                 ev_bets = game.find_plus_ev(
                     ['underdog', 'prizepicks'], 
                     ['fanduel', 'draftkings'], 
-                    0
+                    -5
                 )
                 
                 # Insert EV bets into database
@@ -140,7 +140,7 @@ def update_nba_bets(db: Database):
                 ev_bets = game.find_plus_ev(
                     ['underdog', 'prizepicks'], 
                     ['fanduel', 'draftkings'], 
-                    0
+                    -5
                 )
                 
                 # Insert EV bets into database
