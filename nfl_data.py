@@ -46,22 +46,22 @@ class NFLData:
 
 
 
-    def get_stats_for_all_games(self, player: str, stat: str) -> list[int|float]:
+    def get_stats_for_all_games(self, player: str, stat: str) -> tuple[list[int|float], int]:
         player_name = PLAYER_NAME_MAP.get(player, player)
         current_stats = self.stats[self.stats['player_display_name'] == player_name]
         stat_name = ODDS_API_TO_NFL_STATS_MAP[stat]
         stat_values = current_stats[stat_name].values
-        return stat_values
+        return stat_values, len(stat_values)
 
-    def get_std_dev(self, player: str, stat: str) -> float:
-        stat_values = self.get_stats_for_all_games(player, stat)
-        return np.std(stat_values)
+    def get_std_dev(self, player: str, stat: str) -> tuple[float, int]:
+        stat_values, sample_size = self.get_stats_for_all_games(player, stat)
+        return np.std(stat_values), sample_size
     
-    def get_mean(self, player: str, stat: str) -> float:
-        stat_values = self.get_stats_for_all_games(player, stat)
-        return np.mean(stat_values)
+    def get_mean(self, player: str, stat: str) -> tuple[float, int]:
+        stat_values, sample_size = self.get_stats_for_all_games(player, stat)
+        return np.mean(stat_values), sample_size
     
-    def find_ev_all_games(self, betting_books: list[str], sharp_books: list[str], threshold: float=0.03) -> pd.DataFrame:
+    def find_ev_all_games(self, betting_books: list[str], sharp_books: list[str], threshold: float=0.0) -> pd.DataFrame:
         ev = []
         for game in self.games:
             game_ev = game.find_plus_ev(betting_books, sharp_books, threshold)

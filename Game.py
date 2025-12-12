@@ -127,7 +127,7 @@ class Game:
             if sharp_match_over.empty:
                 continue
             
-            std = self.sport_data.get_std_dev(bet['player'], bet['market'])
+            std, sample_size = self.sport_data.get_std_dev(bet['player'], bet['market'])
 
             implied_means = []
             for _, sharp_bet in sharp_match_over.iterrows():
