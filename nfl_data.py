@@ -29,7 +29,7 @@ PLAYER_NAME_MAP = {
     'Michael Pittman Jr.': 'Michael Pittman',
     'AJ Brown': 'A.J. Brown',
     'Brian Robinson Jr.': 'Brian Robinson',
-    'Brian Thomas Jr': 'Brian Thomas Jr.'
+    'Brian Thomas Jr' : 'Brian Thomas Jr.',
     'Travis Etienne Jr.' : 'Travis Etienne'
 }
 
