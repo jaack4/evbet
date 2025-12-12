@@ -23,6 +23,16 @@ ODDS_API_TO_NFL_STATS_MAP = {
     'player_assists': 'def_tackle_assists'
 }
 
+PLAYER_NAME_MAP = {
+    'Chris Godwin': 'Chris Godwin Jr.',
+    'David Sills V': 'David Sills',
+    'Michael Pittman Jr.': 'Michael Pittman',
+    'AJ Brown': 'A.J. Brown',
+    'Brian Robinson Jr.': 'Brian Robinson',
+    'Brian Thomas Jr': 'Brian Thomas Jr.'
+    'Travis Etienne Jr.' : 'Travis Etienne'
+}
+
 class NFLData:
     def __init__(self, file='stats/nfl_stats.csv'):
         self.games = []
@@ -37,7 +47,8 @@ class NFLData:
 
 
     def get_stats_for_all_games(self, player: str, stat: str) -> list[int|float]:
-        current_stats = self.stats[self.stats['player_display_name'] == player]
+        player_name = PLAYER_NAME_MAP.get(player, player)
+        current_stats = self.stats[self.stats['player_display_name'] == player_name]
         stat_name = ODDS_API_TO_NFL_STATS_MAP[stat]
         stat_values = current_stats[stat_name].values
         return stat_values

@@ -170,6 +170,7 @@ class Game:
                     'betting_line': bet['line'],
                     'sharp_mean': sharp_mean,
                     'implied_means': implied_means,
+                    'std_dev': std,
                     'mean_diff': bet['line'] - sharp_mean,
                     'ev_percent': ev_percent,
                     'price': bet['price'],
@@ -182,7 +183,7 @@ class Game:
         result_df = pd.DataFrame(plus_ev_bets)
         if len(result_df) > 0:
             result_df = result_df.sort_values('ev_percent', ascending=False)
-            result_df = result_df[result_df['ev_percent'] <= 75]
+            #result_df = result_df[result_df['ev_percent'] <= 75]
         
         return result_df
     
