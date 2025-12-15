@@ -29,6 +29,9 @@ CREATE TABLE IF NOT EXISTS ev_bets (
     ev_percent DECIMAL(10, 4) NOT NULL,
     price DECIMAL(10, 4) NOT NULL,
     true_prob DECIMAL(10, 6) NOT NULL,
+    home_team VARCHAR(255),
+    away_team VARCHAR(255),
+    commence_time TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     is_active BOOLEAN DEFAULT TRUE
 );
@@ -42,6 +45,9 @@ CREATE INDEX IF NOT EXISTS idx_ev_bets_ev_percent ON ev_bets(ev_percent DESC);
 CREATE INDEX IF NOT EXISTS idx_ev_bets_active ON ev_bets(is_active);
 CREATE INDEX IF NOT EXISTS idx_ev_bets_player ON ev_bets(player);
 CREATE INDEX IF NOT EXISTS idx_ev_bets_bookmaker ON ev_bets(bookmaker);
+CREATE INDEX IF NOT EXISTS idx_ev_bets_commence_time ON ev_bets(commence_time);
+CREATE INDEX IF NOT EXISTS idx_ev_bets_home_team ON ev_bets(home_team);
+CREATE INDEX IF NOT EXISTS idx_ev_bets_away_team ON ev_bets(away_team);
 
 -- Create a view for easy querying of active bets with game info
 CREATE OR REPLACE VIEW active_ev_bets AS
@@ -61,10 +67,10 @@ SELECT
     eb.price,
     eb.true_prob,
     eb.created_at,
-    g.sport_title,
-    g.home_team,
-    g.away_team,
-    g.commence_time
+    eb.home_team,
+    eb.away_team,
+    eb.commence_time,
+    g.sport_title
 FROM ev_bets eb
 JOIN games g ON eb.game_id = g.id
 WHERE eb.is_active = TRUE

@@ -136,7 +136,7 @@ def get_active_bets(
             with db.conn.cursor() as cur:
                 # Build dynamic query with filters
                 query = """
-                    SELECT eb.*, g.home_team, g.away_team, g.commence_time, g.sport_title
+                    SELECT eb.*, g.sport_title
                     FROM ev_bets eb
                     JOIN games g ON eb.game_id = g.id
                     WHERE eb.is_active = TRUE
@@ -211,7 +211,7 @@ def get_bets_by_bookmaker(
         with Database() as db:
             with db.conn.cursor() as cur:
                 cur.execute("""
-                    SELECT eb.*, g.home_team, g.away_team, g.commence_time, g.sport_title
+                    SELECT eb.*, g.sport_title
                     FROM ev_bets eb
                     JOIN games g ON eb.game_id = g.id
                     WHERE eb.is_active = TRUE AND eb.bookmaker = %s

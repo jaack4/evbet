@@ -84,21 +84,35 @@ class Database:
             print(f"No EV bets to insert for game {game_id}")
             return
         
+        # Get game information for denormalization
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                SELECT home_team, away_team, commence_time 
+                FROM games 
+                WHERE id = %s
+            """, (game_id,))
+            game_info = cur.fetchone()
+            
+            if not game_info:
+                print(f"Warning: Game {game_id} not found in database. Cannot insert bets.")
+                return
+        
         with self.conn.cursor() as cur:
             inserted_count = 0
             for _, bet in ev_bets_df.iterrows():
                 try:
-                    # Insert the new bet as active
+                    # Insert the new bet as active with denormalized game data
                     cur.execute("""
                         INSERT INTO ev_bets 
                         (game_id, bookmaker, market, player, outcome, betting_line, 
                          sharp_mean, std_dev, implied_means, sample_size, mean_diff, 
-                         ev_percent, price, true_prob)
+                         ev_percent, price, true_prob, home_team, away_team, commence_time)
                         VALUES 
                         (%(game_id)s, %(bookmaker)s, %(market)s, %(player)s, 
                          %(outcome)s, %(betting_line)s, %(sharp_mean)s, %(std_dev)s,
                          %(implied_means)s, %(sample_size)s, %(mean_diff)s, 
-                         %(ev_percent)s, %(price)s, %(true_prob)s)
+                         %(ev_percent)s, %(price)s, %(true_prob)s, %(home_team)s,
+                         %(away_team)s, %(commence_time)s)
                     """, {
                         'game_id': game_id,
                         'bookmaker': bet['bookmaker'],
@@ -113,7 +127,10 @@ class Database:
                         'mean_diff': float(bet['mean_diff']),
                         'ev_percent': float(bet['ev_percent']),
                         'price': float(bet['price']),
-                        'true_prob': float(bet['true_prob'])
+                        'true_prob': float(bet['true_prob']),
+                        'home_team': game_info['home_team'],
+                        'away_team': game_info['away_team'],
+                        'commence_time': game_info['commence_time']
                     })
                     inserted_count += 1
                 except Exception as e:
@@ -172,7 +189,7 @@ class Database:
         """
         with self.conn.cursor() as cur:
             cur.execute("""
-                SELECT eb.*, g.home_team, g.away_team, g.commence_time, g.sport_title
+                SELECT eb.*, g.sport_title
                 FROM ev_bets eb
                 JOIN games g ON eb.game_id = g.id
                 WHERE eb.is_active = TRUE
