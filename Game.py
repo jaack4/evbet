@@ -130,6 +130,7 @@ class Game:
             std, sample_size = self.sport_data.get_std_dev(bet['player'], bet['market'])
 
             implied_means = []
+            implied_means_with_bookmaker = []
             for _, sharp_bet in sharp_match_over.iterrows():
 
                 mean = self._calculate_true_mean_from_sharp(
@@ -140,6 +141,10 @@ class Game:
                     std
                 )
                 implied_means.append(mean)
+                implied_means_with_bookmaker.append({
+                    'bookmaker': sharp_bet['bookmaker'],
+                    'implied_mean': mean
+                })
 
             sharp_mean = np.mean(implied_means)
 
@@ -169,7 +174,7 @@ class Game:
                     'outcome': bet['outcome'],
                     'betting_line': bet['line'],
                     'sharp_mean': sharp_mean,
-                    'implied_means': implied_means,
+                    'implied_means': implied_means_with_bookmaker,
                     'std_dev': std,
                     'sample_size': sample_size,
                     'mean_diff': bet['line'] - sharp_mean,

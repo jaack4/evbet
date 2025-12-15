@@ -54,7 +54,7 @@ def get_game(sport, event_id, reigons, markets, odds_format, bookmakers, sport_d
         return Game(odds_json['id'], odds_json['sport_key'], odds_json['sport_title'], odds_json['commence_time'], odds_json['home_team'], odds_json['away_team'], odds_json['bookmakers'], markets, bookmakers, sport_data)
 
 def main():
-    events_json = get_events('americanfootball_nfl', '2025-12-16T20:00:00Z')
+    events_json = get_events('americanfootball_nfl', '2025-12-23T20:00:00Z')
     print(events_json)
     nfl_data = NFLData()
 
@@ -80,7 +80,7 @@ def main():
     return nfl_data
     
 def main_nba():
-    events_json = get_events('basketball_nba', '2025-12-14T20:00:00Z')
+    events_json = get_events('basketball_nba', '2025-12-17T20:00:00Z')
     print(events_json)
     nba_data = NBAData()
 
@@ -98,7 +98,7 @@ def main_nba():
         game = get_game(*odds_params)
         if game is not None:
             print(game)
-            print(game.odds_df)
+            #print(game.odds_df)
             nba_data.games.append(game)
 
     return nba_data
