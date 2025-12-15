@@ -187,6 +187,11 @@ def get_active_bets(
                 bets = []
                 for row in results:
                     bet = dict(row)
+                    if bet.get('implied_means') and isinstance(bet['implied_means'], list):
+                        bet['implied_means'] = {
+                            item['bookmaker']: item['implied_mean'] 
+                            for item in bet['implied_means']
+                        }
                     bets.append(bet)
                 
                 return bets
@@ -223,7 +228,16 @@ def get_bets_by_bookmaker(
                 """, (bookmaker.value, limit))
                 
                 results = cur.fetchall()
-                bets = [dict(row) for row in results]
+                bets = []
+                for row in results:
+                    bet = dict(row)
+                    
+                    if bet.get('implied_means') and isinstance(bet['implied_means'], list):
+                        bet['implied_means'] = {
+                            item['bookmaker']: item['implied_mean'] 
+                            for item in bet['implied_means']
+                        }
+                    bets.append(bet)
                 return bets
     
     except Exception as e:
