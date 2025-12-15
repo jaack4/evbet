@@ -41,6 +41,9 @@ class EVBet(BaseModel):
     outcome: str
     betting_line: float
     sharp_mean: float
+    std_dev: Optional[float] = None
+    implied_means: Optional[dict] = None
+    sample_size: Optional[int] = None
     mean_diff: float
     ev_percent: float
     price: float

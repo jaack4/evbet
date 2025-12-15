@@ -24,6 +24,11 @@ pip install -r requirements.txt
 DATABASE_URL=postgresql://user:password@host:port/database
 ```
 
+3. Initialize the database using the schema:
+```bash
+psql -d your_database -f schema.sql
+```
+
 ## Running the API
 
 ### Development Mode (with auto-reload)
@@ -48,6 +53,18 @@ The API will be available at `http://localhost:8000`
 ### Root
 - **GET** `/`
   - Returns API information and available endpoints
+  - Response:
+  ```json
+  {
+    "message": "EV Betting API",
+    "version": "1.0.0",
+    "endpoints": {
+      "/bets": "Get active EV bets",
+      "/bets/stats": "Get betting statistics",
+      "/health": "Health check"
+    }
+  }
+  ```
 
 ### Health Check
 - **GET** `/health`
@@ -60,7 +77,7 @@ The API will be available at `http://localhost:8000`
   
   **Query Parameters:**
   - `bookmaker` (optional): Filter by bookmaker (`prizepicks` or `underdog`)
-  - `sport` (optional): Filter by sport (e.g., `NFL`, `NBA`)
+  - `sport` (optional): Filter by sport (e.g., `NFL`, `NBA`) - case-insensitive partial match
   - `min_ev` (optional): Minimum EV percentage (e.g., `5.0` for 5%)
   - `max_ev` (optional): Maximum EV percentage
   - `player` (optional): Filter by player name (partial match, case-insensitive)
@@ -174,11 +191,15 @@ All bet responses follow this structure:
   "outcome": "Over",
   "betting_line": 275.5,
   "sharp_mean": 285.3,
+  "std_dev": 12.45,
+  "implied_means": [280.1, 285.5, 290.2],
+  "sample_size": 5,
   "mean_diff": -9.8,
   "ev_percent": 8.45,
   "price": 1.82,
   "true_prob": 0.5954,
   "created_at": "2025-11-30T12:00:00",
+  "is_active": true,
   "sport_title": "NFL",
   "home_team": "Kansas City Chiefs",
   "away_team": "Las Vegas Raiders",
@@ -188,22 +209,90 @@ All bet responses follow this structure:
 
 ## Field Descriptions
 
-- `id`: Unique bet identifier
+### Core Bet Information
+- `id`: Unique bet identifier (auto-incremented)
 - `bookmaker`: Betting platform (prizepicks or underdog)
-- `market`: Type of bet (e.g., player_pass_yds, player_points)
+- `market`: Type of bet (e.g., player_pass_yds, player_points, player_receptions)
 - `player`: Player name
 - `outcome`: Over or Under
 - `betting_line`: The line offered by the bookmaker
+
+### EV Calculation Fields
 - `sharp_mean`: Calculated true mean from sharp bookmakers
-- `mean_diff`: Difference between betting line and sharp mean
+- `std_dev`: Standard deviation of the implied means (optional)
+- `implied_means`: Array of means calculated from different sharp bookmakers (JSON, optional)
+- `sample_size`: Number of sharp bookmakers used in calculation (optional)
+- `mean_diff`: Difference between betting line and sharp mean (negative = line is lower than mean)
 - `ev_percent`: Expected Value as a percentage
-- `price`: Decimal odds offered
+- `price`: Decimal odds offered by the bookmaker
 - `true_prob`: Calculated true probability of the outcome
-- `created_at`: When the bet was last updated
+
+### Game Information (Denormalized)
 - `sport_title`: Sport name (e.g., NFL, NBA)
 - `home_team`: Home team name
 - `away_team`: Away team name
-- `commence_time`: Game start time
+- `commence_time`: Game start time (ISO 8601 format)
+
+### Metadata
+- `created_at`: When the bet was inserted/updated
+- `is_active`: Whether the bet is currently active (boolean)
+
+## Database Schema
+
+### Tables
+
+#### `games`
+Stores game information from the odds API:
+- `id` (VARCHAR, Primary Key): Unique game identifier from odds API
+- `sport_key` (VARCHAR): Sport key (e.g., americanfootball_nfl)
+- `sport_title` (VARCHAR): Human-readable sport name
+- `commence_time` (TIMESTAMP): When the game starts
+- `home_team` (VARCHAR): Home team name
+- `away_team` (VARCHAR): Away team name
+- `created_at` (TIMESTAMP): Record creation time
+- `updated_at` (TIMESTAMP): Last update time
+
+#### `ev_bets`
+Stores calculated EV betting opportunities:
+- `id` (SERIAL, Primary Key): Auto-incremented unique identifier
+- `game_id` (VARCHAR, Foreign Key): References games.id
+- `bookmaker` (VARCHAR): Bookmaker name
+- `market` (VARCHAR): Market type
+- `player` (VARCHAR): Player name
+- `outcome` (VARCHAR): Over or Under
+- `betting_line` (DECIMAL): Line offered by bookmaker
+- `sharp_mean` (DECIMAL): Calculated mean from sharp books
+- `std_dev` (DECIMAL): Standard deviation (optional)
+- `implied_means` (JSON): Array of implied means (optional)
+- `sample_size` (INTEGER): Number of sharp books used (optional)
+- `mean_diff` (DECIMAL): Difference between line and mean
+- `ev_percent` (DECIMAL): Expected value percentage
+- `price` (DECIMAL): Decimal odds
+- `true_prob` (DECIMAL): True probability
+- `home_team` (VARCHAR): Denormalized from games
+- `away_team` (VARCHAR): Denormalized from games
+- `commence_time` (TIMESTAMP): Denormalized from games
+- `created_at` (TIMESTAMP): Record creation time
+- `is_active` (BOOLEAN): Whether bet is currently active
+
+### Views
+
+#### `active_ev_bets`
+A view that joins `ev_bets` with `games` and filters for active bets only, ordered by EV percentage descending.
+
+### Indexes
+The database includes optimized indexes on:
+- `games.commence_time`
+- `games.sport_key`
+- `ev_bets.game_id`
+- `ev_bets.created_at`
+- `ev_bets.ev_percent`
+- `ev_bets.is_active`
+- `ev_bets.player`
+- `ev_bets.bookmaker`
+- `ev_bets.commence_time`
+- `ev_bets.home_team`
+- `ev_bets.away_team`
 
 ## CORS Configuration
 
@@ -271,6 +360,9 @@ curl http://localhost:8000/bets/stats | jq
 
 # Get top 10 PrizePicks bets
 curl "http://localhost:8000/bets?bookmaker=prizepicks&limit=10" | jq
+
+# Get NFL bets with minimum 3% EV
+curl "http://localhost:8000/bets?sport=NFL&min_ev=3.0" | jq
 ```
 
 ## Production Deployment
@@ -283,6 +375,7 @@ For production deployment, consider:
 4. **Monitoring**: Add logging and monitoring (e.g., Sentry, DataDog)
 5. **Rate Limiting**: Implement rate limiting to prevent abuse
 6. **Authentication**: Add API key authentication if needed
+7. **Database Connection Pooling**: Already implemented via psycopg2
 
 Example production command:
 ```bash
@@ -293,9 +386,27 @@ uvicorn api:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info
 
 The API uses the `Database` class from `database.py` which:
 - Connects to PostgreSQL using `DATABASE_URL` environment variable
-- Uses connection pooling for efficient database access
+- Uses `RealDictCursor` for automatic dictionary conversion
 - Automatically manages connections with context managers
 - Returns results as dictionaries for easy JSON serialization
+
+Example usage in code:
+```python
+with Database() as db:
+    with db.conn.cursor() as cur:
+        cur.execute("SELECT * FROM ev_bets WHERE is_active = TRUE")
+        results = cur.fetchall()
+```
+
+## Bet Lifecycle
+
+1. **Creation**: Bets are inserted via the scheduler/data collection process
+2. **Active State**: New bets are marked as `is_active = TRUE`
+3. **Deactivation**: Bets are deactivated when:
+   - A new update cycle begins (sport-specific or global)
+   - The game has commenced (`commence_time < NOW()`)
+   - Bets are older than a specified threshold (e.g., 24 hours)
+4. **Persistence**: Old inactive bets remain in the database for historical analysis
 
 ## Notes
 
@@ -303,9 +414,5 @@ The API uses the `Database` class from `database.py` which:
 - The API only returns active bets by default
 - Results are sorted by EV percentage (highest first)
 - All queries are parameterized to prevent SQL injection
-
-
-
-
-
-
+- Game information is denormalized into `ev_bets` for faster queries
+- The `active_ev_bets` view provides a convenient way to query active bets with game info
