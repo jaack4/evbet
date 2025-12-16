@@ -2,7 +2,8 @@ import os
 from datetime import datetime
 from typing import Optional, List
 from enum import Enum
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Security, Depends
+from fastapi.security import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
@@ -18,13 +19,26 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS
+# API Key Security
+API_KEY = os.getenv("API_KEY")
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=True)
+
+async def verify_api_key(api_key: str = Security(api_key_header)):
+    """Verify the API key from request headers"""
+    if not API_KEY:
+        raise HTTPException(status_code=500, detail="API key not configured")
+    if api_key != API_KEY:
+        raise HTTPException(status_code=403, detail="Invalid API key")
+    return api_key
+
+# Configure CORS - Update with your website domain
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET"],
+    allow_headers=["X-API-Key", "Content-Type"],
 )
 
 # Enum for bookmaker filtering
@@ -91,6 +105,7 @@ def health_check():
 
 @app.get("/bets", response_model=List[EVBet])
 def get_active_bets(
+    api_key: str = Depends(verify_api_key),
     bookmaker: Optional[Bookmaker] = Query(
         None, 
         description="Filter by bookmaker (prizepicks or underdog)"
@@ -202,6 +217,7 @@ def get_active_bets(
 @app.get("/bets/by-bookmaker/{bookmaker}", response_model=List[EVBet])
 def get_bets_by_bookmaker(
     bookmaker: Bookmaker,
+    api_key: str = Depends(verify_api_key),
     limit: int = Query(
         100,
         description="Maximum number of results to return",
@@ -244,7 +260,7 @@ def get_bets_by_bookmaker(
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 @app.get("/bets/stats", response_model=BetStatistics)
-def get_bet_statistics():
+def get_bet_statistics(api_key: str = Depends(verify_api_key)):
     """
     Get statistics about stored bets
     
@@ -264,7 +280,7 @@ def get_bet_statistics():
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 @app.get("/bets/bookmakers")
-def get_available_bookmakers():
+def get_available_bookmakers(api_key: str = Depends(verify_api_key)):
     """
     Get list of available bookmakers in the database
     """
@@ -286,7 +302,7 @@ def get_available_bookmakers():
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 @app.get("/bets/markets")
-def get_available_markets():
+def get_available_markets(api_key: str = Depends(verify_api_key)):
     """
     Get list of available markets in the database
     """
