@@ -20,8 +20,8 @@ app = FastAPI(
 )
 
 # API Key Security
-API_KEY = os.getenv("API_KEY")
-api_key_header = APIKeyHeader(name="X-API-Key", auto_error=True)
+API_KEY = os.getenv("MY_API_KEY")
+api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=True)
 
 async def verify_api_key(api_key: str = Security(api_key_header)):
     """Verify the API key from request headers"""
