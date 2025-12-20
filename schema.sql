@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS ev_bets (
     commence_time TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     is_active BOOLEAN DEFAULT TRUE
+    win BOOLEAN DEFAULT NULL,
+    actual_value DECIMAL(10, 2) DEFAULT NULL
 );
 
 -- Create indexes for faster queries
