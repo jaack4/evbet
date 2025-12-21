@@ -102,6 +102,7 @@ class Database:
             for _, bet in ev_bets_df.iterrows():
                 try:
                     # Insert the new bet as active with denormalized game data
+                    # If duplicate exists, update the bet with new values
                     cur.execute("""
                         INSERT INTO ev_bets 
                         (game_id, bookmaker, market, player, outcome, betting_line, 
@@ -113,6 +114,18 @@ class Database:
                          %(implied_means)s, %(sample_size)s, %(mean_diff)s, 
                          %(ev_percent)s, %(price)s, %(true_prob)s, %(home_team)s,
                          %(away_team)s, %(commence_time)s)
+                        ON CONFLICT (game_id, bookmaker, market, player, outcome, betting_line)
+                        DO UPDATE SET
+                            sharp_mean = EXCLUDED.sharp_mean,
+                            std_dev = EXCLUDED.std_dev,
+                            implied_means = EXCLUDED.implied_means,
+                            sample_size = EXCLUDED.sample_size,
+                            mean_diff = EXCLUDED.mean_diff,
+                            ev_percent = EXCLUDED.ev_percent,
+                            price = EXCLUDED.price,
+                            true_prob = EXCLUDED.true_prob,
+                            is_active = TRUE,
+                            created_at = CURRENT_TIMESTAMP
                     """, {
                         'game_id': game_id,
                         'bookmaker': bet['bookmaker'],
@@ -212,6 +225,101 @@ class Database:
                 FROM ev_bets
             """)
             return cur.fetchone()
+    
+    def get_nfl_win_loss_stats(self):
+        """
+        Get win/loss statistics for NFL bets
+        
+        Returns:
+            dict: Dictionary containing win/loss stats including:
+                - total_bets: Total number of NFL bets with results
+                - wins: Number of winning bets
+                - losses: Number of losing bets
+                - win_rate: Win percentage
+                - avg_ev_won: Average EV% of winning bets
+                - avg_ev_lost: Average EV% of losing bets
+                - total_ev: Average EV% of all graded bets
+        """
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                SELECT 
+                    COUNT(*) as total_bets,
+                    COUNT(CASE WHEN eb.win = TRUE THEN 1 END) as wins,
+                    COUNT(CASE WHEN eb.win = FALSE THEN 1 END) as losses,
+                    ROUND(
+                        COUNT(CASE WHEN eb.win = TRUE THEN 1 END)::numeric / 
+                        NULLIF(COUNT(*), 0) * 100, 
+                        2
+                    ) as win_rate,
+                    AVG(CASE WHEN eb.win = TRUE THEN eb.ev_percent END) as avg_ev_won,
+                    AVG(CASE WHEN eb.win = FALSE THEN eb.ev_percent END) as avg_ev_lost,
+                    AVG(eb.ev_percent) as total_ev,
+                    MIN(eb.commence_time) as first_bet_date,
+                    MAX(eb.commence_time) as last_bet_date
+                FROM ev_bets eb
+                JOIN games g ON eb.game_id = g.id
+                WHERE g.sport_title = 'NFL'
+                AND eb.win IS NOT NULL
+            """)
+            return cur.fetchone()
+    
+    def get_nfl_win_loss_by_bookmaker(self):
+        """
+        Get win/loss statistics for NFL bets grouped by bookmaker
+        
+        Returns:
+            list: List of dictionaries with stats per bookmaker
+        """
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                SELECT 
+                    eb.bookmaker,
+                    COUNT(*) as total_bets,
+                    COUNT(CASE WHEN eb.win = TRUE THEN 1 END) as wins,
+                    COUNT(CASE WHEN eb.win = FALSE THEN 1 END) as losses,
+                    ROUND(
+                        COUNT(CASE WHEN eb.win = TRUE THEN 1 END)::numeric / 
+                        NULLIF(COUNT(*), 0) * 100, 
+                        2
+                    ) as win_rate,
+                    AVG(eb.ev_percent) as avg_ev
+                FROM ev_bets eb
+                JOIN games g ON eb.game_id = g.id
+                WHERE g.sport_title = 'NFL'
+                AND eb.win IS NOT NULL
+                GROUP BY eb.bookmaker
+                ORDER BY total_bets DESC
+            """)
+            return cur.fetchall()
+    
+    def get_nfl_win_loss_by_market(self):
+        """
+        Get win/loss statistics for NFL bets grouped by market type
+        
+        Returns:
+            list: List of dictionaries with stats per market
+        """
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                SELECT 
+                    eb.market,
+                    COUNT(*) as total_bets,
+                    COUNT(CASE WHEN eb.win = TRUE THEN 1 END) as wins,
+                    COUNT(CASE WHEN eb.win = FALSE THEN 1 END) as losses,
+                    ROUND(
+                        COUNT(CASE WHEN eb.win = TRUE THEN 1 END)::numeric / 
+                        NULLIF(COUNT(*), 0) * 100, 
+                        2
+                    ) as win_rate,
+                    AVG(eb.ev_percent) as avg_ev
+                FROM ev_bets eb
+                JOIN games g ON eb.game_id = g.id
+                WHERE g.sport_title = 'NFL'
+                AND eb.win IS NOT NULL
+                GROUP BY eb.market
+                ORDER BY total_bets DESC
+            """)
+            return cur.fetchall()
     
     def close(self):
         """Close database connection"""

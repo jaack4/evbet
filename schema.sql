@@ -33,9 +33,10 @@ CREATE TABLE IF NOT EXISTS ev_bets (
     away_team VARCHAR(255),
     commence_time TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    is_active BOOLEAN DEFAULT TRUE
+    is_active BOOLEAN DEFAULT TRUE,
     win BOOLEAN DEFAULT NULL,
-    actual_value DECIMAL(10, 2) DEFAULT NULL
+    actual_value DECIMAL(10, 2) DEFAULT NULL,
+    CONSTRAINT unique_bet_per_bookmaker UNIQUE (game_id, bookmaker, market, player, outcome, betting_line)
 );
 
 -- Create indexes for faster queries
