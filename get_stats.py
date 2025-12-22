@@ -6,7 +6,7 @@ from nfl_data import ODDS_API_TO_NFL_STATS_MAP, PLAYER_NAME_MAP
 from nba_data import ODDS_API_TO_NBA_STATS_MAP
 import numpy as np
 from database import Database
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 def get_nba_data(seasons: list[int]) -> pd.DataFrame:
@@ -124,7 +124,9 @@ def fill_nfl_bet_results(seasons: list[int] = None) -> dict:
                 stats_player_name = PLAYER_NAME_MAP.get(player_name, player_name)
                 
                 # Get game date from commence_time
-                game_date = commence_time.date()
+                # Subtract 8 hours to handle late night games with timezone issues
+                adjusted_time = commence_time - timedelta(hours=8)
+                game_date = adjusted_time.date()
                 
                 # Find matching player stats for this game
                 player_stats = nfl_stats[
@@ -185,9 +187,143 @@ def fill_nfl_bet_results(seasons: list[int] = None) -> dict:
     return results
 
 
+def fill_nba_bet_results(seasons: list[int] = None) -> dict:
+    """
+    Update win and actual_value in ev_bets table for NBA bets based on actual game results.
+    
+    Args:
+        seasons: List of seasons to load data for. Defaults to current year.
+        
+    Returns:
+        dict with counts of updated, not_found, and error bets
+    """
+    if seasons is None:
+        seasons = [datetime.now().year]
+    
+    # Load NBA stats data
+    print(f"Loading NBA data for seasons: {seasons}")
+    nba_stats = get_nba_data(seasons)
+    
+    # Convert gameDateTimeEst to date for matching
+    nba_stats['game_date'] = nba_stats['gameDateTimeEst'].dt.date
+    
+    results = {'updated': 0, 'not_found': 0, 'errors': 0, 'already_filled': 0}
+    
+    with Database() as db:
+        # Get unfilled NBA bets where game has commenced
+        with db.conn.cursor() as cur:
+            cur.execute("""
+                SELECT eb.id, eb.player, eb.market, eb.betting_line, eb.outcome,
+                       eb.home_team, eb.away_team, eb.commence_time
+                FROM ev_bets eb
+                JOIN games g ON eb.game_id = g.id
+                WHERE eb.win IS NULL
+                  AND eb.commence_time < NOW()
+                  AND g.sport_key LIKE '%basketball_nba%'
+            """)
+            unfilled_bets = cur.fetchall()
+        
+        print(f"Found {len(unfilled_bets)} unfilled NBA bets to process")
+        
+        for bet in unfilled_bets:
+            try:
+                bet_id = bet['id']
+                player_name = bet['player']
+                market = bet['market']
+                betting_line = float(bet['betting_line'])
+                outcome = bet['outcome']
+                commence_time = bet['commence_time']
+                
+                # Get the stat column name from market
+                if market not in ODDS_API_TO_NBA_STATS_MAP:
+                    print(f"  Unknown market '{market}' for bet {bet_id}")
+                    results['errors'] += 1
+                    continue
+                
+                stat_column = ODDS_API_TO_NBA_STATS_MAP[market]
+                
+                # Split player name into first and last name
+                name_parts = player_name.split(' ', 1)
+                if len(name_parts) < 2:
+                    print(f"  Invalid player name format '{player_name}' for bet {bet_id}")
+                    results['errors'] += 1
+                    continue
+                
+                first_name = name_parts[0]
+                last_name = name_parts[1]
+                
+                # Get game date from commence_time
+                # Subtract 8 hours to handle late night games with timezone issues
+                adjusted_time = commence_time - timedelta(hours=8)
+                game_date = adjusted_time.date()
+                
+                # Find matching player stats for this game
+                player_stats = nba_stats[
+                    (nba_stats['firstName'] == first_name) &
+                    (nba_stats['lastName'] == last_name) &
+                    (nba_stats['game_date'] == game_date)
+                ]
+                
+                if player_stats.empty:
+                    # Try without date matching (just player name) and print available dates
+                    player_all = nba_stats[
+                        (nba_stats['firstName'] == first_name) &
+                        (nba_stats['lastName'] == last_name)
+                    ]
+                    if player_all.empty:
+                        print(f"  Player '{player_name}' not found in stats (bet {bet_id})")
+                    else:
+                        available_dates = player_all['game_date'].unique()
+                        print(f"  No stats for '{player_name}' on {game_date}. Available: {available_dates[:5]}")
+                    results['not_found'] += 1
+                    continue
+                
+                # Get the actual stat value
+                actual_value = player_stats[stat_column].iloc[0]
+                
+                # Handle NaN values
+                if pd.isna(actual_value):
+                    actual_value = 0.0
+                else:
+                    actual_value = float(actual_value)
+                
+                # Determine if bet won
+                if outcome.lower() == 'over':
+                    win = actual_value > betting_line
+                elif outcome.lower() == 'under':
+                    win = actual_value < betting_line
+                else:
+                    print(f"  Unknown outcome '{outcome}' for bet {bet_id}")
+                    results['errors'] += 1
+                    continue
+                
+                # Update the bet in the database
+                with db.conn.cursor() as cur:
+                    cur.execute("""
+                        UPDATE ev_bets 
+                        SET win = %s, actual_value = %s
+                        WHERE id = %s
+                    """, (win, actual_value, bet_id))
+                
+                db.conn.commit()
+                results['updated'] += 1
+                
+                win_str = "WON" if win else "LOST"
+                print(f"  Updated bet {bet_id}: {player_name} {outcome} {betting_line} {market} -> {actual_value} ({win_str})")
+                
+            except Exception as e:
+                print(f"  Error processing bet {bet.get('id', 'unknown')}: {e}")
+                results['errors'] += 1
+                continue
+    
+    print(f"\nResults: {results['updated']} updated, {results['not_found']} not found, {results['errors']} errors")
+    return results
+
+
 if __name__ == "__main__":
     import os
     from dotenv import load_dotenv
+    import argparse
     
     load_dotenv()
     
@@ -195,5 +331,36 @@ if __name__ == "__main__":
         print("ERROR: DATABASE_URL environment variable is not set!")
         exit(1)
     
-    # Run for current season
-    fill_nfl_bet_results([2025])
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(
+        description='Fill bet results for NFL and/or NBA bets'
+    )
+    parser.add_argument(
+        '--sport',
+        type=str,
+        choices=['nfl', 'nba', 'both'],
+        default='both',
+        help='Which sport to fill: nfl, nba, or both (default: both)'
+    )
+    parser.add_argument(
+        '--seasons',
+        type=int,
+        nargs='+',
+        default=[datetime.now().year],
+        help='Seasons to load data for (default: current year)'
+    )
+    args = parser.parse_args()
+    
+    # Run for selected sport(s)
+    if args.sport in ['nfl', 'both']:
+        print("\n" + "="*60)
+        print("FILLING NFL BET RESULTS")
+        print("="*60)
+        fill_nfl_bet_results(args.seasons)
+    
+    if args.sport in ['nba', 'both']:
+        print("\n" + "="*60)
+        print("FILLING NBA BET RESULTS")
+        print("="*60)
+        fill_nba_bet_results(args.seasons)
+

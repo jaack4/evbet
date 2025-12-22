@@ -226,9 +226,12 @@ class Database:
             """)
             return cur.fetchone()
     
-    def get_nfl_win_loss_stats(self):
+    def get_nfl_win_loss_stats(self, min_ev=None):
         """
         Get win/loss statistics for NFL bets
+        
+        Args:
+            min_ev (float, optional): Minimum EV percentage to filter by
         
         Returns:
             dict: Dictionary containing win/loss stats including:
@@ -241,7 +244,10 @@ class Database:
                 - total_ev: Average EV% of all graded bets
         """
         with self.conn.cursor() as cur:
-            cur.execute("""
+            ev_filter = "AND eb.ev_percent >= %s" if min_ev is not None else ""
+            params = (min_ev,) if min_ev is not None else ()
+            
+            cur.execute(f"""
                 SELECT 
                     COUNT(*) as total_bets,
                     COUNT(CASE WHEN eb.win = TRUE THEN 1 END) as wins,
@@ -260,18 +266,25 @@ class Database:
                 JOIN games g ON eb.game_id = g.id
                 WHERE g.sport_title = 'NFL'
                 AND eb.win IS NOT NULL
-            """)
+                {ev_filter}
+            """, params)
             return cur.fetchone()
     
-    def get_nfl_win_loss_by_bookmaker(self):
+    def get_nfl_win_loss_by_bookmaker(self, min_ev=None):
         """
         Get win/loss statistics for NFL bets grouped by bookmaker
+        
+        Args:
+            min_ev (float, optional): Minimum EV percentage to filter by
         
         Returns:
             list: List of dictionaries with stats per bookmaker
         """
         with self.conn.cursor() as cur:
-            cur.execute("""
+            ev_filter = "AND eb.ev_percent >= %s" if min_ev is not None else ""
+            params = (min_ev,) if min_ev is not None else ()
+            
+            cur.execute(f"""
                 SELECT 
                     eb.bookmaker,
                     COUNT(*) as total_bets,
@@ -287,20 +300,27 @@ class Database:
                 JOIN games g ON eb.game_id = g.id
                 WHERE g.sport_title = 'NFL'
                 AND eb.win IS NOT NULL
+                {ev_filter}
                 GROUP BY eb.bookmaker
                 ORDER BY total_bets DESC
-            """)
+            """, params)
             return cur.fetchall()
     
-    def get_nfl_win_loss_by_market(self):
+    def get_nfl_win_loss_by_market(self, min_ev=None):
         """
         Get win/loss statistics for NFL bets grouped by market type
+        
+        Args:
+            min_ev (float, optional): Minimum EV percentage to filter by
         
         Returns:
             list: List of dictionaries with stats per market
         """
         with self.conn.cursor() as cur:
-            cur.execute("""
+            ev_filter = "AND eb.ev_percent >= %s" if min_ev is not None else ""
+            params = (min_ev,) if min_ev is not None else ()
+            
+            cur.execute(f"""
                 SELECT 
                     eb.market,
                     COUNT(*) as total_bets,
@@ -316,10 +336,158 @@ class Database:
                 JOIN games g ON eb.game_id = g.id
                 WHERE g.sport_title = 'NFL'
                 AND eb.win IS NOT NULL
+                {ev_filter}
                 GROUP BY eb.market
                 ORDER BY total_bets DESC
-            """)
+            """, params)
             return cur.fetchall()
+    
+    def get_nba_win_loss_stats(self, min_ev=None):
+        """
+        Get win/loss statistics for NBA bets
+        
+        Args:
+            min_ev (float, optional): Minimum EV percentage to filter by
+        
+        Returns:
+            dict: Dictionary containing win/loss stats including:
+                - total_bets: Total number of NBA bets with results
+                - wins: Number of winning bets
+                - losses: Number of losing bets
+                - win_rate: Win percentage
+                - avg_ev_won: Average EV% of winning bets
+                - avg_ev_lost: Average EV% of losing bets
+                - total_ev: Average EV% of all graded bets
+        """
+        with self.conn.cursor() as cur:
+            ev_filter = "AND eb.ev_percent >= %s" if min_ev is not None else ""
+            params = (min_ev,) if min_ev is not None else ()
+            
+            cur.execute(f"""
+                SELECT 
+                    COUNT(*) as total_bets,
+                    COUNT(CASE WHEN eb.win = TRUE THEN 1 END) as wins,
+                    COUNT(CASE WHEN eb.win = FALSE THEN 1 END) as losses,
+                    ROUND(
+                        COUNT(CASE WHEN eb.win = TRUE THEN 1 END)::numeric / 
+                        NULLIF(COUNT(*), 0) * 100, 
+                        2
+                    ) as win_rate,
+                    AVG(CASE WHEN eb.win = TRUE THEN eb.ev_percent END) as avg_ev_won,
+                    AVG(CASE WHEN eb.win = FALSE THEN eb.ev_percent END) as avg_ev_lost,
+                    AVG(eb.ev_percent) as total_ev,
+                    MIN(eb.commence_time) as first_bet_date,
+                    MAX(eb.commence_time) as last_bet_date
+                FROM ev_bets eb
+                JOIN games g ON eb.game_id = g.id
+                WHERE g.sport_title = 'NBA'
+                AND eb.win IS NOT NULL
+                {ev_filter}
+            """, params)
+            return cur.fetchone()
+    
+    def get_nba_win_loss_by_bookmaker(self, min_ev=None):
+        """
+        Get win/loss statistics for NBA bets grouped by bookmaker
+        
+        Args:
+            min_ev (float, optional): Minimum EV percentage to filter by
+        
+        Returns:
+            list: List of dictionaries with stats per bookmaker
+        """
+        with self.conn.cursor() as cur:
+            ev_filter = "AND eb.ev_percent >= %s" if min_ev is not None else ""
+            params = (min_ev,) if min_ev is not None else ()
+            
+            cur.execute(f"""
+                SELECT 
+                    eb.bookmaker,
+                    COUNT(*) as total_bets,
+                    COUNT(CASE WHEN eb.win = TRUE THEN 1 END) as wins,
+                    COUNT(CASE WHEN eb.win = FALSE THEN 1 END) as losses,
+                    ROUND(
+                        COUNT(CASE WHEN eb.win = TRUE THEN 1 END)::numeric / 
+                        NULLIF(COUNT(*), 0) * 100, 
+                        2
+                    ) as win_rate,
+                    AVG(eb.ev_percent) as avg_ev
+                FROM ev_bets eb
+                JOIN games g ON eb.game_id = g.id
+                WHERE g.sport_title = 'NBA'
+                AND eb.win IS NOT NULL
+                {ev_filter}
+                GROUP BY eb.bookmaker
+                ORDER BY total_bets DESC
+            """, params)
+            return cur.fetchall()
+    
+    def get_nba_win_loss_by_market(self, min_ev=None):
+        """
+        Get win/loss statistics for NBA bets grouped by market type
+        
+        Args:
+            min_ev (float, optional): Minimum EV percentage to filter by
+        
+        Returns:
+            list: List of dictionaries with stats per market
+        """
+        with self.conn.cursor() as cur:
+            ev_filter = "AND eb.ev_percent >= %s" if min_ev is not None else ""
+            params = (min_ev,) if min_ev is not None else ()
+            
+            cur.execute(f"""
+                SELECT 
+                    eb.market,
+                    COUNT(*) as total_bets,
+                    COUNT(CASE WHEN eb.win = TRUE THEN 1 END) as wins,
+                    COUNT(CASE WHEN eb.win = FALSE THEN 1 END) as losses,
+                    ROUND(
+                        COUNT(CASE WHEN eb.win = TRUE THEN 1 END)::numeric / 
+                        NULLIF(COUNT(*), 0) * 100, 
+                        2
+                    ) as win_rate,
+                    AVG(eb.ev_percent) as avg_ev
+                FROM ev_bets eb
+                JOIN games g ON eb.game_id = g.id
+                WHERE g.sport_title = 'NBA'
+                AND eb.win IS NOT NULL
+                {ev_filter}
+                GROUP BY eb.market
+                ORDER BY total_bets DESC
+            """, params)
+            return cur.fetchall()
+    
+    def remove_invalid_bets(self):
+        """
+        Remove bets where created_at is after commence_time
+        These are invalid as bets should be placed before the game starts
+        
+        Returns:
+            int: Number of bets deleted
+        """
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                DELETE FROM ev_bets
+                WHERE created_at > commence_time
+            """)
+            self.conn.commit()
+            return cur.rowcount
+    
+    def get_invalid_bets_count(self):
+        """
+        Count bets where created_at is after commence_time
+        
+        Returns:
+            int: Number of invalid bets
+        """
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                SELECT COUNT(*) as count
+                FROM ev_bets
+                WHERE created_at > commence_time
+            """)
+            return cur.fetchone()['count']
     
     def close(self):
         """Close database connection"""

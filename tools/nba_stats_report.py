@@ -1,26 +1,34 @@
 #!/usr/bin/env python3
 """
-Script to display NFL bet win/loss statistics
+Script to display NBA bet win/loss statistics
 """
 import os
+import argparse
 from dotenv import load_dotenv
 from database import Database
 
 # Load environment variables
 load_dotenv()
 
-def display_nfl_stats():
-    """Display comprehensive NFL betting statistics"""
+def display_nba_stats(min_ev=None):
+    """Display comprehensive NBA betting statistics
+    
+    Args:
+        min_ev (float, optional): Minimum EV percentage to filter by
+    """
     
     print("\n" + "="*60)
-    print("NFL BETTING PERFORMANCE REPORT")
+    if min_ev is not None:
+        print(f"NBA BETTING PERFORMANCE REPORT (EV >= {min_ev}%)")
+    else:
+        print("NBA BETTING PERFORMANCE REPORT (ALL BETS)")
     print("="*60 + "\n")
     
     with Database() as db:
-        # Overall NFL stats
-        print("OVERALL NFL STATISTICS")
+        # Overall NBA stats
+        print("OVERALL NBA STATISTICS")
         print("-"*60)
-        stats = db.get_nfl_win_loss_stats()
+        stats = db.get_nba_win_loss_stats(min_ev=min_ev)
         
         if stats and stats['total_bets'] > 0:
             print(f"Total Bets Graded:    {stats['total_bets']}")
@@ -35,14 +43,17 @@ def display_nfl_stats():
             if stats['first_bet_date']:
                 print(f"Date Range:           {stats['first_bet_date']} to {stats['last_bet_date']}")
         else:
-            print("No graded NFL bets found in database.")
+            if min_ev is not None:
+                print(f"No graded NBA bets found with EV >= {min_ev}%.")
+            else:
+                print("No graded NBA bets found in database.")
             return
         
         # Stats by bookmaker
         print("\n" + "-"*60)
         print("PERFORMANCE BY BOOKMAKER")
         print("-"*60)
-        bookmaker_stats = db.get_nfl_win_loss_by_bookmaker()
+        bookmaker_stats = db.get_nba_win_loss_by_bookmaker(min_ev=min_ev)
         
         if bookmaker_stats:
             print(f"{'Bookmaker':<15} {'Bets':>6} {'Wins':>6} {'Losses':>6} {'Win%':>7} {'Avg EV':>8}")
@@ -55,7 +66,7 @@ def display_nfl_stats():
         print("\n" + "-"*60)
         print("PERFORMANCE BY MARKET TYPE")
         print("-"*60)
-        market_stats = db.get_nfl_win_loss_by_market()
+        market_stats = db.get_nba_win_loss_by_market(min_ev=min_ev)
         
         if market_stats:
             print(f"{'Market':<30} {'Bets':>6} {'Wins':>6} {'Losses':>6} {'Win%':>7} {'Avg EV':>8}")
@@ -73,5 +84,17 @@ if __name__ == "__main__":
         print("Please set it in your .env file")
         exit(1)
     
-    display_nfl_stats()
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(
+        description='Display NBA betting performance statistics'
+    )
+    parser.add_argument(
+        '--min-ev',
+        type=float,
+        default=None,
+        help='Minimum EV percentage to filter by (e.g., --min-ev 5 for EV >= 5%%)'
+    )
+    args = parser.parse_args()
+    
+    display_nba_stats(min_ev=args.min_ev)
 
