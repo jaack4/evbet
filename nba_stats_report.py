@@ -10,16 +10,23 @@ from database import Database
 # Load environment variables
 load_dotenv()
 
-def display_nba_stats(min_ev=None):
+def display_nba_stats(min_ev=None, min_mean_diff=None):
     """Display comprehensive NBA betting statistics
     
     Args:
         min_ev (float, optional): Minimum EV percentage to filter by
+        min_mean_diff (float, optional): Minimum absolute mean difference to filter by
     """
     
     print("\n" + "="*60)
+    filters = []
     if min_ev is not None:
-        print(f"NBA BETTING PERFORMANCE REPORT (EV >= {min_ev}%)")
+        filters.append(f"EV >= {min_ev}%")
+    if min_mean_diff is not None:
+        filters.append(f"Mean Diff >= {min_mean_diff}")
+    
+    if filters:
+        print(f"NBA BETTING PERFORMANCE REPORT ({', '.join(filters)})")
     else:
         print("NBA BETTING PERFORMANCE REPORT (ALL BETS)")
     print("="*60 + "\n")
@@ -28,7 +35,7 @@ def display_nba_stats(min_ev=None):
         # Overall NBA stats
         print("OVERALL NBA STATISTICS")
         print("-"*60)
-        stats = db.get_nba_win_loss_stats(min_ev=min_ev)
+        stats = db.get_nba_win_loss_stats(min_ev=min_ev, min_mean_diff=min_mean_diff)
         
         if stats and stats['total_bets'] > 0:
             print(f"Total Bets Graded:    {stats['total_bets']}")
@@ -43,17 +50,14 @@ def display_nba_stats(min_ev=None):
             if stats['first_bet_date']:
                 print(f"Date Range:           {stats['first_bet_date']} to {stats['last_bet_date']}")
         else:
-            if min_ev is not None:
-                print(f"No graded NBA bets found with EV >= {min_ev}%.")
-            else:
-                print("No graded NBA bets found in database.")
+            print("No graded NBA bets found matching the specified filters.")
             return
         
         # Stats by bookmaker
         print("\n" + "-"*60)
         print("PERFORMANCE BY BOOKMAKER")
         print("-"*60)
-        bookmaker_stats = db.get_nba_win_loss_by_bookmaker(min_ev=min_ev)
+        bookmaker_stats = db.get_nba_win_loss_by_bookmaker(min_ev=min_ev, min_mean_diff=min_mean_diff)
         
         if bookmaker_stats:
             print(f"{'Bookmaker':<15} {'Bets':>6} {'Wins':>6} {'Losses':>6} {'Win%':>7} {'Avg EV':>8}")
@@ -66,7 +70,7 @@ def display_nba_stats(min_ev=None):
         print("\n" + "-"*60)
         print("PERFORMANCE BY MARKET TYPE")
         print("-"*60)
-        market_stats = db.get_nba_win_loss_by_market(min_ev=min_ev)
+        market_stats = db.get_nba_win_loss_by_market(min_ev=min_ev, min_mean_diff=min_mean_diff)
         
         if market_stats:
             print(f"{'Market':<30} {'Bets':>6} {'Wins':>6} {'Losses':>6} {'Win%':>7} {'Avg EV':>8}")
@@ -94,7 +98,13 @@ if __name__ == "__main__":
         default=None,
         help='Minimum EV percentage to filter by (e.g., --min-ev 5 for EV >= 5%%)'
     )
+    parser.add_argument(
+        '--min-mean-diff',
+        type=float,
+        default=None,
+        help='Minimum absolute mean difference to filter by (e.g., --min-mean-diff 0.5 for |mean_diff| >= 0.5)'
+    )
     args = parser.parse_args()
     
-    display_nba_stats(min_ev=args.min_ev)
+    display_nba_stats(min_ev=args.min_ev, min_mean_diff=args.min_mean_diff)
 

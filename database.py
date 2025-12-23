@@ -226,12 +226,13 @@ class Database:
             """)
             return cur.fetchone()
     
-    def get_nfl_win_loss_stats(self, min_ev=None):
+    def get_nfl_win_loss_stats(self, min_ev=None, min_mean_diff=None):
         """
         Get win/loss statistics for NFL bets
         
         Args:
             min_ev (float, optional): Minimum EV percentage to filter by
+            min_mean_diff (float, optional): Minimum absolute mean difference to filter by
         
         Returns:
             dict: Dictionary containing win/loss stats including:
@@ -244,8 +245,19 @@ class Database:
                 - total_ev: Average EV% of all graded bets
         """
         with self.conn.cursor() as cur:
-            ev_filter = "AND eb.ev_percent >= %s" if min_ev is not None else ""
-            params = (min_ev,) if min_ev is not None else ()
+            filters = []
+            params = []
+            
+            if min_ev is not None:
+                filters.append("eb.ev_percent >= %s")
+                params.append(min_ev)
+            
+            if min_mean_diff is not None:
+                filters.append("ABS(eb.mean_diff) >= %s")
+                params.append(min_mean_diff)
+            
+            filter_clause = "AND " + " AND ".join(filters) if filters else ""
+            params = tuple(params)
             
             cur.execute(f"""
                 SELECT 
@@ -266,23 +278,35 @@ class Database:
                 JOIN games g ON eb.game_id = g.id
                 WHERE g.sport_title = 'NFL'
                 AND eb.win IS NOT NULL
-                {ev_filter}
+                {filter_clause}
             """, params)
             return cur.fetchone()
     
-    def get_nfl_win_loss_by_bookmaker(self, min_ev=None):
+    def get_nfl_win_loss_by_bookmaker(self, min_ev=None, min_mean_diff=None):
         """
         Get win/loss statistics for NFL bets grouped by bookmaker
         
         Args:
             min_ev (float, optional): Minimum EV percentage to filter by
+            min_mean_diff (float, optional): Minimum absolute mean difference to filter by
         
         Returns:
             list: List of dictionaries with stats per bookmaker
         """
         with self.conn.cursor() as cur:
-            ev_filter = "AND eb.ev_percent >= %s" if min_ev is not None else ""
-            params = (min_ev,) if min_ev is not None else ()
+            filters = []
+            params = []
+            
+            if min_ev is not None:
+                filters.append("eb.ev_percent >= %s")
+                params.append(min_ev)
+            
+            if min_mean_diff is not None:
+                filters.append("ABS(eb.mean_diff) >= %s")
+                params.append(min_mean_diff)
+            
+            filter_clause = "AND " + " AND ".join(filters) if filters else ""
+            params = tuple(params)
             
             cur.execute(f"""
                 SELECT 
@@ -300,25 +324,37 @@ class Database:
                 JOIN games g ON eb.game_id = g.id
                 WHERE g.sport_title = 'NFL'
                 AND eb.win IS NOT NULL
-                {ev_filter}
+                {filter_clause}
                 GROUP BY eb.bookmaker
                 ORDER BY total_bets DESC
             """, params)
             return cur.fetchall()
     
-    def get_nfl_win_loss_by_market(self, min_ev=None):
+    def get_nfl_win_loss_by_market(self, min_ev=None, min_mean_diff=None):
         """
         Get win/loss statistics for NFL bets grouped by market type
         
         Args:
             min_ev (float, optional): Minimum EV percentage to filter by
+            min_mean_diff (float, optional): Minimum absolute mean difference to filter by
         
         Returns:
             list: List of dictionaries with stats per market
         """
         with self.conn.cursor() as cur:
-            ev_filter = "AND eb.ev_percent >= %s" if min_ev is not None else ""
-            params = (min_ev,) if min_ev is not None else ()
+            filters = []
+            params = []
+            
+            if min_ev is not None:
+                filters.append("eb.ev_percent >= %s")
+                params.append(min_ev)
+            
+            if min_mean_diff is not None:
+                filters.append("ABS(eb.mean_diff) >= %s")
+                params.append(min_mean_diff)
+            
+            filter_clause = "AND " + " AND ".join(filters) if filters else ""
+            params = tuple(params)
             
             cur.execute(f"""
                 SELECT 
@@ -336,18 +372,19 @@ class Database:
                 JOIN games g ON eb.game_id = g.id
                 WHERE g.sport_title = 'NFL'
                 AND eb.win IS NOT NULL
-                {ev_filter}
+                {filter_clause}
                 GROUP BY eb.market
                 ORDER BY total_bets DESC
             """, params)
             return cur.fetchall()
     
-    def get_nba_win_loss_stats(self, min_ev=None):
+    def get_nba_win_loss_stats(self, min_ev=None, min_mean_diff=None):
         """
         Get win/loss statistics for NBA bets
         
         Args:
             min_ev (float, optional): Minimum EV percentage to filter by
+            min_mean_diff (float, optional): Minimum absolute mean difference to filter by
         
         Returns:
             dict: Dictionary containing win/loss stats including:
@@ -360,8 +397,19 @@ class Database:
                 - total_ev: Average EV% of all graded bets
         """
         with self.conn.cursor() as cur:
-            ev_filter = "AND eb.ev_percent >= %s" if min_ev is not None else ""
-            params = (min_ev,) if min_ev is not None else ()
+            filters = []
+            params = []
+            
+            if min_ev is not None:
+                filters.append("eb.ev_percent >= %s")
+                params.append(min_ev)
+            
+            if min_mean_diff is not None:
+                filters.append("ABS(eb.mean_diff) >= %s")
+                params.append(min_mean_diff)
+            
+            filter_clause = "AND " + " AND ".join(filters) if filters else ""
+            params = tuple(params)
             
             cur.execute(f"""
                 SELECT 
@@ -382,23 +430,35 @@ class Database:
                 JOIN games g ON eb.game_id = g.id
                 WHERE g.sport_title = 'NBA'
                 AND eb.win IS NOT NULL
-                {ev_filter}
+                {filter_clause}
             """, params)
             return cur.fetchone()
     
-    def get_nba_win_loss_by_bookmaker(self, min_ev=None):
+    def get_nba_win_loss_by_bookmaker(self, min_ev=None, min_mean_diff=None):
         """
         Get win/loss statistics for NBA bets grouped by bookmaker
         
         Args:
             min_ev (float, optional): Minimum EV percentage to filter by
+            min_mean_diff (float, optional): Minimum absolute mean difference to filter by
         
         Returns:
             list: List of dictionaries with stats per bookmaker
         """
         with self.conn.cursor() as cur:
-            ev_filter = "AND eb.ev_percent >= %s" if min_ev is not None else ""
-            params = (min_ev,) if min_ev is not None else ()
+            filters = []
+            params = []
+            
+            if min_ev is not None:
+                filters.append("eb.ev_percent >= %s")
+                params.append(min_ev)
+            
+            if min_mean_diff is not None:
+                filters.append("ABS(eb.mean_diff) >= %s")
+                params.append(min_mean_diff)
+            
+            filter_clause = "AND " + " AND ".join(filters) if filters else ""
+            params = tuple(params)
             
             cur.execute(f"""
                 SELECT 
@@ -416,25 +476,37 @@ class Database:
                 JOIN games g ON eb.game_id = g.id
                 WHERE g.sport_title = 'NBA'
                 AND eb.win IS NOT NULL
-                {ev_filter}
+                {filter_clause}
                 GROUP BY eb.bookmaker
                 ORDER BY total_bets DESC
             """, params)
             return cur.fetchall()
     
-    def get_nba_win_loss_by_market(self, min_ev=None):
+    def get_nba_win_loss_by_market(self, min_ev=None, min_mean_diff=None):
         """
         Get win/loss statistics for NBA bets grouped by market type
         
         Args:
             min_ev (float, optional): Minimum EV percentage to filter by
+            min_mean_diff (float, optional): Minimum absolute mean difference to filter by
         
         Returns:
             list: List of dictionaries with stats per market
         """
         with self.conn.cursor() as cur:
-            ev_filter = "AND eb.ev_percent >= %s" if min_ev is not None else ""
-            params = (min_ev,) if min_ev is not None else ()
+            filters = []
+            params = []
+            
+            if min_ev is not None:
+                filters.append("eb.ev_percent >= %s")
+                params.append(min_ev)
+            
+            if min_mean_diff is not None:
+                filters.append("ABS(eb.mean_diff) >= %s")
+                params.append(min_mean_diff)
+            
+            filter_clause = "AND " + " AND ".join(filters) if filters else ""
+            params = tuple(params)
             
             cur.execute(f"""
                 SELECT 
@@ -452,7 +524,7 @@ class Database:
                 JOIN games g ON eb.game_id = g.id
                 WHERE g.sport_title = 'NBA'
                 AND eb.win IS NOT NULL
-                {ev_filter}
+                {filter_clause}
                 GROUP BY eb.market
                 ORDER BY total_bets DESC
             """, params)

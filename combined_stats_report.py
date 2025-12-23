@@ -10,24 +10,31 @@ from database import Database
 # Load environment variables
 load_dotenv()
 
-def display_combined_stats(min_ev=None):
+def display_combined_stats(min_ev=None, min_mean_diff=None):
     """Display comprehensive betting statistics for both NFL and NBA
     
     Args:
         min_ev (float, optional): Minimum EV percentage to filter by
+        min_mean_diff (float, optional): Minimum absolute mean difference to filter by
     """
     
     print("\n" + "="*70)
+    filters = []
     if min_ev is not None:
-        print(f"COMBINED BETTING PERFORMANCE REPORT (EV >= {min_ev}%)")
+        filters.append(f"EV >= {min_ev}%")
+    if min_mean_diff is not None:
+        filters.append(f"Mean Diff >= {min_mean_diff}")
+    
+    if filters:
+        print(f"COMBINED BETTING PERFORMANCE REPORT ({', '.join(filters)})")
     else:
         print("COMBINED BETTING PERFORMANCE REPORT (ALL BETS)")
     print("="*70 + "\n")
     
     with Database() as db:
         # Get stats for both sports
-        nfl_stats = db.get_nfl_win_loss_stats(min_ev=min_ev)
-        nba_stats = db.get_nba_win_loss_stats(min_ev=min_ev)
+        nfl_stats = db.get_nfl_win_loss_stats(min_ev=min_ev, min_mean_diff=min_mean_diff)
+        nba_stats = db.get_nba_win_loss_stats(min_ev=min_ev, min_mean_diff=min_mean_diff)
         
         # Combined comparison table
         print("SPORT COMPARISON")
@@ -98,8 +105,8 @@ def display_combined_stats(min_ev=None):
         print("-"*70)
         
         # Get all markets from both sports
-        nfl_markets = db.get_nfl_win_loss_by_market(min_ev=min_ev)
-        nba_markets = db.get_nba_win_loss_by_market(min_ev=min_ev)
+        nfl_markets = db.get_nfl_win_loss_by_market(min_ev=min_ev, min_mean_diff=min_mean_diff)
+        nba_markets = db.get_nba_win_loss_by_market(min_ev=min_ev, min_mean_diff=min_mean_diff)
         
         # Combine and sort by win rate (minimum 10 bets)
         all_markets = []
@@ -152,7 +159,13 @@ if __name__ == "__main__":
         default=None,
         help='Minimum EV percentage to filter by (e.g., --min-ev 5 for EV >= 5%%)'
     )
+    parser.add_argument(
+        '--min-mean-diff',
+        type=float,
+        default=None,
+        help='Minimum absolute mean difference to filter by (e.g., --min-mean-diff 0.5 for |mean_diff| >= 0.5)'
+    )
     args = parser.parse_args()
     
-    display_combined_stats(min_ev=args.min_ev)
+    display_combined_stats(min_ev=args.min_ev, min_mean_diff=args.min_mean_diff)
 
