@@ -52,10 +52,10 @@ def update_nfl_bets(db: Database):
                 game = get_game(
                     NFL,
                     event['id'],
-                    'us',
+                    'us,us_dfs',
                     NFL_MARKETS,
                     'decimal',
-                    'prizepicks,underdog,fanduel,draftkings',
+                    'prizepicks,underdog,betr_us_dfs,pick6,fanduel,draftkings',
                     nfl_data
                 )
                 
@@ -65,7 +65,7 @@ def update_nfl_bets(db: Database):
                 
                 # Find EV bets (threshold of 0 to get all positive EV)
                 ev_bets = game.find_plus_ev(
-                    ['underdog', 'prizepicks'], 
+                    ['underdog', 'prizepicks', 'betr_us_dfs', 'pick6'], 
                     ['fanduel', 'draftkings'], 
                     -5
                 )
@@ -125,10 +125,10 @@ def update_nba_bets(db: Database):
                 game = get_game(
                     NBA,
                     event['id'],
-                    'us',
+                    'us,us_dfs',
                     NBA_MARKETS,
                     'decimal',
-                    'prizepicks,underdog,fanduel,draftkings',
+                    'prizepicks,underdog,betr_us_dfs,pick6,fanduel,draftkings',
                     nba_data
                 )
                 
@@ -138,7 +138,7 @@ def update_nba_bets(db: Database):
                 
                 # Find EV bets
                 ev_bets = game.find_plus_ev(
-                    ['underdog', 'prizepicks'], 
+                    ['underdog', 'prizepicks', 'betr_us_dfs', 'pick6'], 
                     ['fanduel', 'draftkings'], 
                     -5
                 )
