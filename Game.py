@@ -52,7 +52,7 @@ class Game:
         self.odds_df.drop(columns=['implied_prob', 'total_prob'], inplace=True)
     
     def _adjust_odds_for_betting_books(self, price: float = 1.82) -> None:
-        mask = self.odds_df['bookmaker'].isin(['prizepicks', 'underdog'])
+        mask = self.odds_df['bookmaker'].isin(['prizepicks', 'underdog', 'betr_us_dfs', 'pick6'])
         self.odds_df.loc[mask, 'price'] = price
     
     
