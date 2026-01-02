@@ -13,29 +13,50 @@ from database import Database
 # Load environment variables
 load_dotenv()
 
-def update_nfl_bets(db: Database):
-    """Fetch and update NFL EV bets"""
+def update_bets_for_sport(db: Database, sport_key: str, sport_title: str, markets: str, 
+                          data_class, days_ahead: int = 7):
+    """
+    Fetch and update EV bets for a given sport
+    
+    Args:
+        db: Database instance
+        sport_key: Sport key (e.g., 'americanfootball_nfl', 'basketball_nba')
+        sport_title: Sport title (e.g., 'NFL', 'NBA')
+        markets: Comma-separated list of markets to fetch
+        data_class: Data class to use (NFLData or NBAData)
+        days_ahead: Number of days ahead to fetch games for
+    """
     print(f"\n{'='*50}")
-    print(f"[{datetime.now()}] Updating NFL bets...")
+    print(f"[{datetime.now()}] Updating {sport_title} bets...")
     print(f"{'='*50}\n")
     
     try:
-        # Get NFL games for the next 7 days
-        commence_time_to = (datetime.now() + timedelta(days=9)).isoformat(timespec='seconds') + 'Z'
-        nfl_events = get_events(NFL, commence_time_to)
+        # Get games for the next N days
+        commence_time_to = (datetime.now() + timedelta(days=days_ahead)).isoformat(timespec='seconds') + 'Z'
+        events = get_events(sport_key, commence_time_to)
         
-        if not nfl_events:
-            print("No NFL events found")
+        if not events:
+            print(f"No {sport_title} events found")
             return
         
-        print(f"Found {len(nfl_events)} NFL events")
-        nfl_data = NFLData()
+        print(f"Found {len(events)} {sport_title} events")
+        sport_data = data_class()
         
         total_ev_bets = 0
+        skipped_count = 0
         
-        for event in nfl_events:
+        for event in events:
             try:
-                print(f"\nProcessing: {event['away_team']} @ {event['home_team']}")
+                print(f"\nProcessing: {event['away_team']} @ {event['home_team']} {event['commence_time']}")
+                
+                # Check if game has already started (skip if commenced)
+                commence_time = datetime.fromisoformat(event['commence_time'].replace('Z', '+00:00'))
+                now = datetime.now(commence_time.tzinfo)
+                
+                if commence_time <= now:
+                    print(f"  Skipping: Game has already commenced at {commence_time}")
+                    skipped_count += 1
+                    continue
                 
                 # Insert game into database
                 game_data = {
@@ -50,20 +71,20 @@ def update_nfl_bets(db: Database):
                 
                 # Get odds and calculate EV
                 game = get_game(
-                    NFL,
+                    sport_key,
                     event['id'],
                     'us,us_dfs',
-                    NFL_MARKETS,
+                    markets,
                     'decimal',
                     'prizepicks,underdog,betr_us_dfs,pick6,fanduel,draftkings',
-                    nfl_data
+                    sport_data
                 )
                 
                 if game is None:
                     print(f"Failed to get game data for {event['id']}")
                     continue
                 
-                # Find EV bets (threshold of 0 to get all positive EV)
+                # Find EV bets (threshold of -5 to get all positive EV)
                 ev_bets = game.find_plus_ev(
                     ['underdog', 'prizepicks', 'betr_us_dfs', 'pick6'], 
                     ['fanduel', 'draftkings'], 
@@ -81,83 +102,20 @@ def update_nfl_bets(db: Database):
                 print(f"Error processing event {event.get('id')}: {e}")
                 continue
         
-        print(f"\nNFL Update Complete: {total_ev_bets} total EV bets found")
+        print(f"\n{sport_title} Update Complete: {total_ev_bets} total EV bets found")
+        if skipped_count > 0:
+            print(f"Skipped {skipped_count} games that had already commenced")
         
     except Exception as e:
-        print(f"Error in update_nfl_bets: {e}")
+        print(f"Error in update_{sport_title.lower()}_bets: {e}")
+
+def update_nfl_bets(db: Database):
+    """Fetch and update NFL EV bets"""
+    update_bets_for_sport(db, NFL, 'NFL', NFL_MARKETS, NFLData, days_ahead=9)
 
 def update_nba_bets(db: Database):
     """Fetch and update NBA EV bets"""
-    print(f"\n{'='*50}")
-    print(f"[{datetime.now()}] Updating NBA bets...")
-    print(f"{'='*50}\n")
-    
-    try:
-        # Get NBA games for the next 7 days
-        commence_time_to = (datetime.now() + timedelta(days=4)).isoformat(timespec='seconds') + 'Z'
-        nba_events = get_events(NBA, commence_time_to)
-        
-        if not nba_events:
-            print("No NBA events found")
-            return
-        
-        print(f"Found {len(nba_events)} NBA events")
-        nba_data = NBAData()
-        
-        total_ev_bets = 0
-        
-        for event in nba_events:
-            try:
-                print(f"\nProcessing: {event['away_team']} @ {event['home_team']}")
-                
-                # Insert game into database
-                game_data = {
-                    'id': event['id'],
-                    'sport_key': event['sport_key'],
-                    'sport_title': event['sport_title'],
-                    'commence_time': event['commence_time'],
-                    'home_team': event['home_team'],
-                    'away_team': event['away_team']
-                }
-                db.insert_game(game_data)
-                
-                # Get odds and calculate EV
-                game = get_game(
-                    NBA,
-                    event['id'],
-                    'us,us_dfs',
-                    NBA_MARKETS,
-                    'decimal',
-                    'prizepicks,underdog,betr_us_dfs,pick6,fanduel,draftkings',
-                    nba_data
-                )
-                
-                if game is None:
-                    print(f"Failed to get game data for {event['id']}")
-                    continue
-                
-                # Find EV bets
-                ev_bets = game.find_plus_ev(
-                    ['underdog', 'prizepicks', 'betr_us_dfs', 'pick6'], 
-                    ['fanduel', 'draftkings'], 
-                    -5
-                )
-                
-                # Insert EV bets into database
-                db.insert_ev_bets(ev_bets, event['id'])
-                
-                bet_count = len(ev_bets)
-                total_ev_bets += bet_count
-                print(f"Found {bet_count} EV bets")
-                
-            except Exception as e:
-                print(f"Error processing event {event.get('id')}: {e}")
-                continue
-        
-        print(f"\nNBA Update Complete: {total_ev_bets} total EV bets found")
-        
-    except Exception as e:
-        print(f"Error in update_nba_bets: {e}")
+    update_bets_for_sport(db, NBA, 'NBA', NBA_MARKETS, NBAData, days_ahead=3)
 
 def update_ev_bets(sport=None):
     """
@@ -287,5 +245,5 @@ if __name__ == "__main__":
     
     while True:
         schedule.run_pending()
-        time.sleep(30)  # Check every minute
+        time.sleep(20)
 
