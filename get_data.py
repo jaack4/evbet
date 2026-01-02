@@ -91,7 +91,7 @@ def main_nba():
             'us',
             NBA_MARKETS,
             'decimal',
-            'prizepicks,underdog,fanduel,draftkings',
+            'prizepicks,underdog,betr_us_dfs,pick6,fanduel,draftkings',
             nba_data
         )
 

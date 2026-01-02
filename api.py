@@ -45,6 +45,8 @@ app.add_middleware(
 class Bookmaker(str, Enum):
     prizepicks = "prizepicks"
     underdog = "underdog"
+    betr = "betr_us_dfs"
+    pick6 = "pick6"
 
 # Pydantic models for response
 class EVBet(BaseModel):
@@ -108,7 +110,7 @@ def get_active_bets(
     api_key: str = Depends(verify_api_key),
     bookmaker: Optional[Bookmaker] = Query(
         None, 
-        description="Filter by bookmaker (prizepicks or underdog)"
+        description="Filter by bookmaker (prizepicks, underdog, betr, or pick6)"
     ),
     sport: Optional[str] = Query(
         None,
@@ -141,7 +143,7 @@ def get_active_bets(
     """
     Get active EV bets with optional filtering
     
-    - **bookmaker**: Filter by specific bookmaker (prizepicks or underdog)
+    - **bookmaker**: Filter by specific bookmaker (prizepicks, underdog, betr, or pick6)
     - **sport**: Filter by sport title
     - **min_ev**: Minimum EV percentage threshold
     - **max_ev**: Maximum EV percentage threshold
@@ -228,7 +230,7 @@ def get_bets_by_bookmaker(
     """
     Get active EV bets for a specific bookmaker
     
-    - **bookmaker**: prizepicks or underdog
+    - **bookmaker**: prizepicks, underdog, betr, or pick6
     - **limit**: Maximum number of results (default: 100, max: 500)
     """
     try:

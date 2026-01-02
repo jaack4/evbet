@@ -190,7 +190,7 @@ class Database:
             if rows_affected > 0:
                 print(f"Deactivated {rows_affected} bets for commenced games")
     
-    def get_active_ev_bets(self, limit=100):
+    def get_active_ev_bets(self, limit=400):
         """
         Get active EV bets sorted by EV percentage
         

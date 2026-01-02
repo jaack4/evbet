@@ -115,7 +115,7 @@ def update_nfl_bets(db: Database):
 
 def update_nba_bets(db: Database):
     """Fetch and update NBA EV bets"""
-    update_bets_for_sport(db, NBA, 'NBA', NBA_MARKETS, NBAData, days_ahead=3)
+    update_bets_for_sport(db, NBA, 'NBA', NBA_MARKETS, NBAData, days_ahead=4)
 
 def update_ev_bets(sport=None):
     """
