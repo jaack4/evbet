@@ -80,7 +80,7 @@ def main():
     return nfl_data
     
 def main_nba():
-    events_json = get_events('basketball_nba', '2025-12-29T20:00:00Z')
+    events_json = get_events('basketball_nba', '2026-01-08T20:00:00Z')
     print(events_json)
     nba_data = NBAData()
 

@@ -19,7 +19,7 @@ class Game:
 
         self.odds_df = self._odds_to_df(bookmakers)
         self._devig_odds()
-        self._adjust_odds_for_betting_books()
+        self._adjust_odds_for_betting_books(books=['prizepicks', 'underdog', 'betr_us_dfs', 'pick6'], price=1.82)
     
     def _odds_to_df(self, bookmakers):
         rows = []
@@ -51,8 +51,8 @@ class Game:
         self.odds_df['devigged_price'] = 1 / self.odds_df['devigged_prob']
         self.odds_df.drop(columns=['implied_prob', 'total_prob'], inplace=True)
     
-    def _adjust_odds_for_betting_books(self, price: float = 1.82) -> None:
-        mask = self.odds_df['bookmaker'].isin(['prizepicks', 'underdog', 'betr_us_dfs', 'pick6'])
+    def _adjust_odds_for_betting_books(self, books: list[str], price: float = 1.82) -> None:
+        mask = self.odds_df['bookmaker'].isin(books)
         self.odds_df.loc[mask, 'price'] = price
     
     
