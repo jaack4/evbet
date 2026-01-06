@@ -62,10 +62,34 @@ class Game:
         cache = {}
         unique_pairs = player_market_pairs[['player', 'market']].drop_duplicates()
         
+        failed_lookups = []
+        low_sample_size = []
+        
         for _, row in unique_pairs.iterrows():
             key = (row['player'], row['market'])
             if key not in cache:
-                cache[key] = self.sport_data.get_std_dev(row['player'], row['market'])
+                std, sample_size = self.sport_data.get_std_dev(row['player'], row['market'])
+                cache[key] = (std, sample_size)
+                
+                # Log issues
+                if np.isnan(std) or std == 0:
+                    failed_lookups.append(f"{row['player']} - {row['market']}")
+                elif sample_size <= 1:
+                    low_sample_size.append(f"{row['player']} - {row['market']} (n={sample_size})")
+        
+        if failed_lookups:
+            print(f"WARNING: Failed to get valid std_dev for {len(failed_lookups)} player/market combinations:")
+            for item in failed_lookups[:5]:  # Show first 5
+                print(f"  - {item}")
+            if len(failed_lookups) > 5:
+                print(f"  ... and {len(failed_lookups) - 5} more")
+        
+        if low_sample_size:
+            print(f"WARNING: Low sample size for {len(low_sample_size)} player/market combinations:")
+            for item in low_sample_size[:5]:  # Show first 5
+                print(f"  - {item}")
+            if len(low_sample_size) > 5:
+                print(f"  ... and {len(low_sample_size) - 5} more")
         
         return cache
     
@@ -90,17 +114,36 @@ class Game:
         valid_std_mask = (sharp_over_df['std_dev'] > 0) & (~sharp_over_df['std_dev'].isna())
         prob_not_half_mask = sharp_over_df['devigged_prob'] != 0.5
         
+        # Log edge cases with player names
+        invalid_std_count = (~valid_std_mask).sum()
+        prob_half_count = (~prob_not_half_mask).sum()
+        
+        if invalid_std_count > 0:
+            invalid_players = sharp_over_df[~valid_std_mask][['player', 'market']].drop_duplicates()
+            print(f"INFO: {invalid_std_count} sharp lines using fallback (line value) due to invalid std_dev")
+            print(f"      Players affected:")
+            for _, row in invalid_players.head(10).iterrows():
+                print(f"        - {row['player']} ({row['market']})")
+            if len(invalid_players) > 10:
+                print(f"        ... and {len(invalid_players) - 10} more")
+        
+        if prob_half_count > 0:
+            print(f"INFO: {prob_half_count} sharp lines at exactly 50% probability (using line value)")
+        
         # Default to line value
         sharp_over_df['implied_mean'] = sharp_over_df['line']
         
         # Calculate z-scores and implied means where valid
         calc_mask = valid_std_mask & prob_not_half_mask
+        calculated_count = calc_mask.sum()
+        
         if calc_mask.any():
             z_scores = stats.norm.ppf(1 - sharp_over_df.loc[calc_mask, 'devigged_prob'].values)
             sharp_over_df.loc[calc_mask, 'implied_mean'] = (
                 sharp_over_df.loc[calc_mask, 'line'].values - 
                 (sharp_over_df.loc[calc_mask, 'std_dev'].values * z_scores)
             )
+            print(f"INFO: Calculated implied means for {calculated_count} sharp lines using Normal distribution")
         
         # Aggregate sharp means per player/market with bookmaker details
         sharp_agg = sharp_over_df.groupby(['player', 'market']).agg(
@@ -126,6 +169,9 @@ class Game:
         valid_std = (merged['std_dev'] > 0) & (~merged['std_dev'].isna())
         merged['true_prob'] = np.nan
         
+        valid_count = valid_std.sum()
+        invalid_count = (~valid_std).sum()
+        
         # For valid std_dev: use normal distribution
         if valid_std.any():
             over_mask = valid_std & (merged['outcome'] == 'Over')
@@ -144,6 +190,8 @@ class Game:
                     loc=merged.loc[under_mask, 'sharp_mean'].values,
                     scale=merged.loc[under_mask, 'std_dev'].values
                 )
+            
+            print(f"INFO: Calculated probabilities using Normal distribution for {valid_count} bets")
         
         # For invalid std_dev: use mean comparison
         invalid_std = ~valid_std
@@ -157,6 +205,14 @@ class Game:
             merged.loc[under_invalid, 'true_prob'] = (
                 merged.loc[under_invalid, 'sharp_mean'] < merged.loc[under_invalid, 'line']
             ).astype(float)
+            
+            print(f"WARNING: Using mean comparison fallback for {invalid_count} bets (no valid std_dev)")
+            invalid_players = merged[invalid_std][['player', 'market', 'bookmaker']].drop_duplicates()
+            print(f"         Players affected:")
+            for _, row in invalid_players.head(10).iterrows():
+                print(f"           - {row['player']} ({row['market']}) on {row['bookmaker']}")
+            if len(invalid_players) > 10:
+                print(f"           ... and {len(invalid_players) - 10} more")
         
         return merged
     
@@ -168,13 +224,44 @@ class Game:
         merged['ev_percent'] = ((merged['true_prob'] * merged['price']) - 1) * 100
         merged['mean_diff'] = merged['line'] - merged['sharp_mean']
         
+        total_bets = len(merged)
+        above_threshold = (merged['ev_percent'] >= threshold).sum()
+        
+        # Identify bets filtered by low sample size
+        low_sample_mask = (merged['sample_size'] <= 1)
+        low_sample = low_sample_mask.sum()
+        
         # Filter by threshold and sample size
         result_df = merged[
             (merged['ev_percent'] >= threshold) & 
             (merged['sample_size'] > 1)
         ].copy()
         
-        if result_df.empty:
+        final_count = len(result_df)
+        
+        # Log filtering summary
+        print(f"INFO: Filtering summary:")
+        print(f"  - Total bets evaluated: {total_bets}")
+        print(f"  - Bets meeting EV threshold (>={threshold}%): {above_threshold}")
+        print(f"  - Bets filtered due to low sample size (<=1): {low_sample}")
+        
+        # Show which players had low sample size
+        if low_sample > 0:
+            low_sample_players = merged[low_sample_mask][['player', 'market', 'sample_size']].drop_duplicates()
+            print(f"      Players with low sample size:")
+            for _, row in low_sample_players.head(10).iterrows():
+                print(f"        - {row['player']} ({row['market']}) n={row['sample_size']}")
+            if len(low_sample_players) > 10:
+                print(f"        ... and {len(low_sample_players) - 10} more")
+        
+        print(f"  - Final EV bets: {final_count}")
+        
+        if final_count == 0:
+            below_threshold = total_bets - above_threshold
+            if below_threshold > 0:
+                print(f"INFO: {below_threshold} bets were below EV threshold")
+            if low_sample > 0:
+                print(f"INFO: Consider lowering sample size requirement if too many bets are filtered")
             return pd.DataFrame()
         
         # Add game metadata
@@ -206,20 +293,38 @@ class Game:
         @param threshold: Minimum EV percentage to include in results (default 0.0)
         @return: DataFrame with plus EV bets sorted by EV percentage
         """
+        print(f"\n{'='*60}")
+        print(f"Finding EV bets for {self.home_team} vs {self.away_team}")
+        print(f"Betting books: {betting_books}")
+        print(f"Sharp books: {sharp_books}")
+        print(f"EV threshold: {threshold}%")
+        print(f"{'='*60}")
+        
         # Filter dataframes
         sharp_df = self.odds_df[self.odds_df['bookmaker'].isin(sharp_books)].copy()
         betting_df = self.odds_df[self.odds_df['bookmaker'].isin(betting_books)].copy()
         
-        if betting_df.empty or sharp_df.empty:
+        print(f"INFO: Found {len(betting_df)} betting lines and {len(sharp_df)} sharp lines")
+        
+        if betting_df.empty:
+            print("WARNING: No betting lines found for specified betting books")
+            return pd.DataFrame()
+        
+        if sharp_df.empty:
+            print("WARNING: No sharp lines found for specified sharp books")
             return pd.DataFrame()
         
         # Get only 'Over' outcomes from sharp books for mean calculation
         sharp_over_df = sharp_df[sharp_df['outcome'] == 'Over'].copy()
         
+        print(f"INFO: Found {len(sharp_over_df)} sharp 'Over' lines for mean calculation")
+        
         if sharp_over_df.empty:
+            print("WARNING: No 'Over' outcomes found in sharp books")
             return pd.DataFrame()
         
         # Pre-fetch all std_dev values at once (cached lookup)
+        print("\nFetching standard deviations...")
         std_cache = self._get_std_dev_batch(betting_df)
         
         # Add std_dev and sample_size to both dataframes
@@ -227,19 +332,33 @@ class Game:
         sharp_over_df = self._add_std_dev_to_dataframe(sharp_over_df, std_cache)
         
         # Calculate sharp means from sharp book lines
+        print("\nCalculating sharp means...")
         sharp_agg = self._calculate_sharp_means(sharp_over_df)
+        
+        print(f"INFO: Calculated sharp means for {len(sharp_agg)} unique player/market combinations")
         
         # Merge betting bets with aggregated sharp data
         merged = betting_df.merge(sharp_agg, on=['player', 'market'], how='inner')
         
+        unmatched = len(betting_df) - len(merged)
+        if unmatched > 0:
+            print(f"WARNING: {unmatched} betting lines had no matching sharp data and were excluded")
+        
         if merged.empty:
+            print("WARNING: No betting lines matched with sharp data")
             return pd.DataFrame()
         
+        print(f"INFO: {len(merged)} betting lines matched with sharp data")
+        
         # Calculate true probabilities
+        print("\nCalculating true probabilities...")
         merged = self._calculate_true_probabilities(merged)
         
         # Format results and filter by threshold
+        print("\nFiltering and formatting results...")
         result_df = self._format_results(merged, threshold)
+        
+        print(f"{'='*60}\n")
         
         return result_df
     

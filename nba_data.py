@@ -33,7 +33,12 @@ class NBAData:
         try:
             # Use index-based lookup (O(log n) vs O(n) for filter)
             current_stats = self.stats.loc[player]
-            stat_name = ODDS_API_TO_NBA_STATS_MAP[stat]
+            stat_name = ODDS_API_TO_NBA_STATS_MAP.get(stat)
+            
+            if stat_name is None:
+                print(f"WARNING: Unknown market '{stat}' not in NBA stats mapping")
+                return np.array([]), 0
+            
             # Handle single row vs multiple rows
             if isinstance(current_stats, pd.Series):
                 stat_values = np.array([current_stats[stat_name]])
@@ -42,6 +47,7 @@ class NBAData:
             stat_values = stat_values[~np.isnan(stat_values)]
             return stat_values, len(stat_values)
         except KeyError:
+            print(f"WARNING: Player '{player}' not found in NBA stats database")
             return np.array([]), 0
 
     def get_std_dev(self, player: str, stat: str) -> tuple[float, int]:
