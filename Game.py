@@ -41,7 +41,6 @@ class Game:
         """
         Update odds_df to add column for devigged price and probability with multiplicative method
         """
-        print(f'odds_df columns: {self.odds_df.columns.tolist()}')
         self.odds_df['implied_prob'] = 1 / self.odds_df['price']
         
         grouped = self.odds_df.groupby(['bookmaker', 'market', 'player', 'line'])
@@ -54,142 +53,193 @@ class Game:
     def _adjust_odds_for_betting_books(self, books: list[str], price: float = 1.82) -> None:
         mask = self.odds_df['bookmaker'].isin(books)
         self.odds_df.loc[mask, 'price'] = price
-    
-    
-    def _calculate_true_mean_from_sharp(self, player: str, market: str, sharp_line: float, sharp_devigged_prob: float, std: float) -> float:
-        """
-        Back out the true mean from sharp book's line and probability using normal distribution.
-        """
-        try:
-            if sharp_devigged_prob == 0.5:
-                return np.float64(sharp_line)
-            
-            if std == 0 or np.isnan(std):
-                print('STD Failed: Returning sharp line')
-                return sharp_line
-            
-            # Back out the mean: μ = L - σ * Φ^(-1)(1 - p_over)
-            # P(Over) = 1 - Φ((L - μ) / σ), solve for μ
-            z_score = stats.norm.ppf(1 - sharp_devigged_prob)  # ppf is inverse CDF
-            implied_mean = sharp_line - (std * z_score)
-            
-            return implied_mean
 
-        except Exception as e:
-            print(f"Error calculating implied mean for {player} {market}: {e}")
-            return sharp_line  
-
-    def _calculate_prob_with_sharp_mean(self, player: str, market: str, sharp_mean: float, betting_line: float, outcome: str, std: float) -> float:
+    def _get_std_dev_batch(self, player_market_pairs: pd.DataFrame) -> dict:
         """
-        Calculate the probability of an outcome using normal distribution.
+        Batch fetch std_dev for all unique player/market combinations.
+        Returns dict mapping (player, market) -> (std, sample_size)
         """
-        try:
+        cache = {}
+        unique_pairs = player_market_pairs[['player', 'market']].drop_duplicates()
+        
+        for _, row in unique_pairs.iterrows():
+            key = (row['player'], row['market'])
+            if key not in cache:
+                cache[key] = self.sport_data.get_std_dev(row['player'], row['market'])
+        
+        return cache
+    
+    def _add_std_dev_to_dataframe(self, df: pd.DataFrame, std_cache: dict) -> pd.DataFrame:
+        """
+        Add std_dev and sample_size columns to dataframe using cached values.
+        """
+        df['_key'] = list(zip(df['player'], df['market']))
+        df['std_dev'] = df['_key'].map(lambda k: std_cache.get(k, (np.nan, 0))[0])
+        df['sample_size'] = df['_key'].map(lambda k: std_cache.get(k, (np.nan, 0))[1])
+        df.drop(columns=['_key'], inplace=True)
+        return df
+    
+    def _calculate_sharp_means(self, sharp_over_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Calculate implied means from sharp book lines and aggregate per player/market.
+        
+        Uses the formula: μ = L - σ * Φ^(-1)(1 - p_over)
+        where L is the line, σ is std dev, and p_over is the devigged probability
+        """
+        # Handle edge cases
+        valid_std_mask = (sharp_over_df['std_dev'] > 0) & (~sharp_over_df['std_dev'].isna())
+        prob_not_half_mask = sharp_over_df['devigged_prob'] != 0.5
+        
+        # Default to line value
+        sharp_over_df['implied_mean'] = sharp_over_df['line']
+        
+        # Calculate z-scores and implied means where valid
+        calc_mask = valid_std_mask & prob_not_half_mask
+        if calc_mask.any():
+            z_scores = stats.norm.ppf(1 - sharp_over_df.loc[calc_mask, 'devigged_prob'].values)
+            sharp_over_df.loc[calc_mask, 'implied_mean'] = (
+                sharp_over_df.loc[calc_mask, 'line'].values - 
+                (sharp_over_df.loc[calc_mask, 'std_dev'].values * z_scores)
+            )
+        
+        # Aggregate sharp means per player/market with bookmaker details
+        sharp_agg = sharp_over_df.groupby(['player', 'market']).agg(
+            sharp_mean=('implied_mean', 'mean'),
+            implied_means_list=('implied_mean', list),
+            bookmakers_list=('bookmaker', list)
+        ).reset_index()
+        
+        # Create implied_means column with bookmaker info
+        sharp_agg['implied_means'] = sharp_agg.apply(
+            lambda row: [{'bookmaker': b, 'implied_mean': m} 
+                        for b, m in zip(row['bookmakers_list'], row['implied_means_list'])],
+            axis=1
+        )
+        sharp_agg.drop(columns=['implied_means_list', 'bookmakers_list'], inplace=True)
+        
+        return sharp_agg
+    
+    def _calculate_true_probabilities(self, merged: pd.DataFrame) -> pd.DataFrame:
+        """
+        Calculate true probabilities using normal distribution or mean comparison.
+        """
+        valid_std = (merged['std_dev'] > 0) & (~merged['std_dev'].isna())
+        merged['true_prob'] = np.nan
+        
+        # For valid std_dev: use normal distribution
+        if valid_std.any():
+            over_mask = valid_std & (merged['outcome'] == 'Over')
+            under_mask = valid_std & (merged['outcome'] == 'Under')
             
-            if std == 0 or np.isnan(std):
-                print(f'STD Failed: Returning based on mean for player: {player}, market: {market}')
-                if outcome == 'Over':
-                    return 1.0 if sharp_mean > betting_line else 0.0
-                else:
-                    return 1.0 if sharp_mean < betting_line else 0.0
+            if over_mask.any():
+                merged.loc[over_mask, 'true_prob'] = 1 - stats.norm.cdf(
+                    merged.loc[over_mask, 'line'].values,
+                    loc=merged.loc[over_mask, 'sharp_mean'].values,
+                    scale=merged.loc[over_mask, 'std_dev'].values
+                )
             
-            # Use normal distribution to calculate probability
-            if outcome == 'Over':
-                prob = 1 - stats.norm.cdf(betting_line, loc=sharp_mean, scale=std)
-            else:  # Under
-                prob = stats.norm.cdf(betting_line, loc=sharp_mean, scale=std)
+            if under_mask.any():
+                merged.loc[under_mask, 'true_prob'] = stats.norm.cdf(
+                    merged.loc[under_mask, 'line'].values,
+                    loc=merged.loc[under_mask, 'sharp_mean'].values,
+                    scale=merged.loc[under_mask, 'std_dev'].values
+                )
+        
+        # For invalid std_dev: use mean comparison
+        invalid_std = ~valid_std
+        if invalid_std.any():
+            over_invalid = invalid_std & (merged['outcome'] == 'Over')
+            under_invalid = invalid_std & (merged['outcome'] == 'Under')
             
-            return prob
-                
-        except Exception as e:
-            print(f"Error calculating probability for {player} {market}: {e}")
-            return None
+            merged.loc[over_invalid, 'true_prob'] = (
+                merged.loc[over_invalid, 'sharp_mean'] > merged.loc[over_invalid, 'line']
+            ).astype(float)
+            merged.loc[under_invalid, 'true_prob'] = (
+                merged.loc[under_invalid, 'sharp_mean'] < merged.loc[under_invalid, 'line']
+            ).astype(float)
+        
+        return merged
+    
+    def _format_results(self, merged: pd.DataFrame, threshold: float) -> pd.DataFrame:
+        """
+        Calculate EV, filter by threshold and sample size, and format output.
+        """
+        # Calculate EV percentage (vectorized)
+        merged['ev_percent'] = ((merged['true_prob'] * merged['price']) - 1) * 100
+        merged['mean_diff'] = merged['line'] - merged['sharp_mean']
+        
+        # Filter by threshold and sample size
+        result_df = merged[
+            (merged['ev_percent'] >= threshold) & 
+            (merged['sample_size'] > 1)
+        ].copy()
+        
+        if result_df.empty:
+            return pd.DataFrame()
+        
+        # Add game metadata
+        result_df['sport_key'] = self.sport_key
+        result_df['home_team'] = self.home_team
+        result_df['away_team'] = self.away_team
+        result_df['commence_time'] = self.commence_time
+        
+        # Select and rename columns to match expected output format
+        result_df = result_df.rename(columns={'line': 'betting_line'})
+        result_df = result_df[[
+            'bookmaker', 'sport_key', 'market', 'player', 'outcome',
+            'betting_line', 'sharp_mean', 'implied_means', 'std_dev', 
+            'sample_size', 'mean_diff', 'ev_percent', 'price', 'true_prob',
+            'home_team', 'away_team', 'commence_time'
+        ]]
+        
+        # Sort by EV
+        result_df = result_df.sort_values('ev_percent', ascending=False)
+        
+        return result_df
 
     def find_plus_ev(self, betting_books: list[str], sharp_books: list[str], threshold: float=0.0) -> pd.DataFrame:
         """
+        Find positive expected value (EV) bets using vectorized operations.
+        
         @param betting_books: Bookmakers user is betting on
-        @param sharp_books: List of bookmakers to use for sharp odds (their lines used as true mean)
-        @param threshold: Threshold for plus EV, default of 0.03
-        @return: DataFrame with plus EV bets
+        @param sharp_books: Bookmakers to use for sharp odds (their lines used as true mean)
+        @param threshold: Minimum EV percentage to include in results (default 0.0)
+        @return: DataFrame with plus EV bets sorted by EV percentage
         """
+        # Filter dataframes
         sharp_df = self.odds_df[self.odds_df['bookmaker'].isin(sharp_books)].copy()
         betting_df = self.odds_df[self.odds_df['bookmaker'].isin(betting_books)].copy()
-        plus_ev_bets = []
-
-        print(f"Finding plus EV bets {len(betting_df)} for {self.home_team} {self.away_team} {self.commence_time}")
         
-        for _, bet in betting_df.iterrows():
-            sharp_match_over = sharp_df[
-                (sharp_df['player'] == bet['player']) & 
-                (sharp_df['market'] == bet['market']) & 
-                (sharp_df['outcome'] == 'Over')
-            ]
-            
-            if sharp_match_over.empty:
-                continue
-            
-            std, sample_size = self.sport_data.get_std_dev(bet['player'], bet['market'])
-
-            implied_means = []
-            implied_means_with_bookmaker = []
-            for _, sharp_bet in sharp_match_over.iterrows():
-
-                mean = self._calculate_true_mean_from_sharp(
-                    bet['player'],
-                    bet['market'],
-                    sharp_bet['line'],
-                    sharp_bet['devigged_prob'],
-                    std
-                )
-                implied_means.append(mean)
-                implied_means_with_bookmaker.append({
-                    'bookmaker': sharp_bet['bookmaker'],
-                    'implied_mean': mean
-                })
-
-            sharp_mean = np.mean(implied_means)
-
-            print(f"player: {bet['player']}, market: {bet['market']}, sharp_mean: {sharp_mean}, implied_means: {implied_means}, num_sharp_books: {len(sharp_match_over)}")
-
-            true_prob = self._calculate_prob_with_sharp_mean(
-                bet['player'], 
-                bet['market'], 
-                sharp_mean,
-                bet['line'], 
-                bet['outcome'],
-                std
-            )
-            
-            if true_prob is None:
-                print('True prob is None')
-                continue
-            
-            ev_percent = ((true_prob * bet['price']) - 1) * 100
-    
-            if ev_percent >= threshold:
-                plus_ev_bets.append({
-                    'bookmaker': bet['bookmaker'],
-                    'sport_key': self.sport_key,
-                    'market': bet['market'],
-                    'player': bet['player'],
-                    'outcome': bet['outcome'],
-                    'betting_line': bet['line'],
-                    'sharp_mean': sharp_mean,
-                    'implied_means': implied_means_with_bookmaker,
-                    'std_dev': std,
-                    'sample_size': sample_size,
-                    'mean_diff': bet['line'] - sharp_mean,
-                    'ev_percent': ev_percent,
-                    'price': bet['price'],
-                    'true_prob': true_prob,
-                    'home_team': self.home_team,
-                    'away_team': self.away_team,
-                    'commence_time': self.commence_time
-                })
+        if betting_df.empty or sharp_df.empty:
+            return pd.DataFrame()
         
-        result_df = pd.DataFrame(plus_ev_bets)
-        if len(result_df) > 0:
-            result_df = result_df.sort_values('ev_percent', ascending=False)
-            result_df = result_df[result_df['sample_size'] > 1]
+        # Get only 'Over' outcomes from sharp books for mean calculation
+        sharp_over_df = sharp_df[sharp_df['outcome'] == 'Over'].copy()
+        
+        if sharp_over_df.empty:
+            return pd.DataFrame()
+        
+        # Pre-fetch all std_dev values at once (cached lookup)
+        std_cache = self._get_std_dev_batch(betting_df)
+        
+        # Add std_dev and sample_size to both dataframes
+        betting_df = self._add_std_dev_to_dataframe(betting_df, std_cache)
+        sharp_over_df = self._add_std_dev_to_dataframe(sharp_over_df, std_cache)
+        
+        # Calculate sharp means from sharp book lines
+        sharp_agg = self._calculate_sharp_means(sharp_over_df)
+        
+        # Merge betting bets with aggregated sharp data
+        merged = betting_df.merge(sharp_agg, on=['player', 'market'], how='inner')
+        
+        if merged.empty:
+            return pd.DataFrame()
+        
+        # Calculate true probabilities
+        merged = self._calculate_true_probabilities(merged)
+        
+        # Format results and filter by threshold
+        result_df = self._format_results(merged, threshold)
         
         return result_df
     

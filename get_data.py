@@ -54,7 +54,7 @@ def get_game(sport, event_id, reigons, markets, odds_format, bookmakers, sport_d
         return Game(odds_json['id'], odds_json['sport_key'], odds_json['sport_title'], odds_json['commence_time'], odds_json['home_team'], odds_json['away_team'], odds_json['bookmakers'], markets, bookmakers, sport_data)
 
 def main():
-    events_json = get_events('americanfootball_nfl', '2026-01-07T20:00:00Z')
+    events_json = get_events('americanfootball_nfl', '2026-01-12T20:00:00Z')
     print(events_json)
     nfl_data = NFLData()
 
