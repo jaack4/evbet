@@ -51,6 +51,7 @@ CREATE INDEX IF NOT EXISTS idx_ev_bets_bookmaker ON ev_bets(bookmaker);
 CREATE INDEX IF NOT EXISTS idx_ev_bets_commence_time ON ev_bets(commence_time);
 CREATE INDEX IF NOT EXISTS idx_ev_bets_home_team ON ev_bets(home_team);
 CREATE INDEX IF NOT EXISTS idx_ev_bets_away_team ON ev_bets(away_team);
+CREATE INDEX IF NOT EXISTS idx_ev_bets_win_not_null ON ev_bets(win) WHERE win IS NOT NULL;
 
 -- Create a view for easy querying of active bets with game info
 CREATE OR REPLACE VIEW active_ev_bets AS
