@@ -75,6 +75,7 @@ class Database:
         """
         Insert EV bets from a DataFrame as active bets.
         All bets are inserted as active (is_active = TRUE).
+        Only inserts bets if the game has not yet commenced.
         
         Args:
             ev_bets_df (pd.DataFrame): DataFrame containing EV bets
@@ -95,6 +96,11 @@ class Database:
             
             if not game_info:
                 print(f"Warning: Game {game_id} not found in database. Cannot insert bets.")
+                return
+            
+            # Check if game has already commenced
+            if game_info['commence_time'] <= datetime.now(game_info['commence_time'].tzinfo):
+                print(f"Warning: Game {game_id} has already commenced. Skipping bet insertion to prevent invalid bets.")
                 return
         
         with self.conn.cursor() as cur:
