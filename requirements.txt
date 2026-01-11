@@ -9,3 +9,4 @@ nflreadpy
 matplotlib
 fastapi
 uvicorn
+kagglehub
