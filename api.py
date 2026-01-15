@@ -464,7 +464,7 @@ def get_historical_bets(
                 
                 # Get total count
                 cur.execute(count_query, count_params)
-                total_count = cur.fetchone()[0]
+                total_count = cur.fetchone()['count']
                 
                 # Calculate pagination
                 total_pages = (total_count + page_size - 1) // page_size  # Ceiling division
